@@ -904,8 +904,8 @@ class CloudwatchStatusCheck(MetricStatusCheck):
                                               self.dimension_name,
                                               self.dimension_value,
                                               self.granularity,
-                                              self.statistic,
-                                              self.percentile)
+                                              statistic=self.statistic,
+                                              percentile=self.percentile)
         return super(MetricStatusCheck, self).get_series()
 
 class HttpStatusCheck(StatusCheck):

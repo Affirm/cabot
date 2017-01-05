@@ -14,6 +14,6 @@ def _get_boto_client():
 
 
 def cloudwatch_parse_metric(namespace, metric_name, dimension_name,
-                            dimension_value, granularity, statistic,
-                            percentile):
+                            dimension_value, granularity, statistic=None,
+                            percentile=None):
     pass

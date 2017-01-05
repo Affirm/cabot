@@ -20,7 +20,7 @@ import base64
 from mock import Mock, patch
 
 from cabot.cabotapp.models import (
-    GraphiteStatusCheck, JenkinsStatusCheck,
+    GraphiteStatusCheck, CloudwatchStatusCheck, JenkinsStatusCheck,
     HttpStatusCheck, ICMPStatusCheck, Service, Instance,
     StatusCheckResult, UserProfile)
 from cabot.cabotapp.views import StatusCheckReportForm
@@ -62,6 +62,18 @@ class LocalTestCase(APITestCase):
             metric='stats.fake.value',
             check_type='<=',
             value='9.0',
+            created_by=self.user,
+            importance=Service.ERROR_STATUS,
+        )
+        self.cloudwatch_check = CloudwatchStatusCheck.objects.create(
+            name='Cloudwatch Check',
+            namespace='Test',
+            metric_name='FakeCloudwatch',
+            dimension_name='Table',
+            dimension_value='E',
+            granularity=300,
+            check_type='<=',
+            value='6.0',
             created_by=self.user,
             importance=Service.ERROR_STATUS,
         )
@@ -121,6 +133,12 @@ def fake_graphite_response(*args, **kwargs):
     resp.status_code = 200
     return resp
 
+
+def fake_cloudwatch_response(*args, **kwargs):
+    resp = Mock()
+    resp.json = lambda: json.loads(get_content('cloudwatch_response.json'))
+    resp.status_code = 200
+    return resp
 
 def fake_jenkins_success(*args, **kwargs):
     resp = Mock()
@@ -225,6 +243,10 @@ class TestCheckRun(LocalTestCase):
         self.assertEqual(len(checkresults), 4)
         self.assertEqual(self.graphite_check.calculated_status,
                          Service.CALCULATED_PASSING_STATUS)
+
+    @patch('cabot.cabotapp.cloudwatch.????', fake_cloudwatch_response)
+    def test_cloudwatch_run(self):
+        checkresults = self.cloudwatch_check.statuscheckresult_set.all()
 
     @patch('cabot.cabotapp.jenkins.requests.get', fake_jenkins_success)
     def test_jenkins_success(self):
