@@ -134,11 +134,12 @@ def fake_graphite_response(*args, **kwargs):
     return resp
 
 
-def fake_cloudwatch_response(*args, **kwargs):
+def fake_boto_client(*args, **kwargs):
+    logging.info('no fn idea whats goin on rn')
     resp = Mock()
-    resp.json = lambda: json.loads(get_content('cloudwatch_response.json'))
-    resp.status_code = 200
+    resp.get_metrics_statistics.return_value = json.loads(get_content('cloudwatch_response.json'))
     return resp
+
 
 def fake_jenkins_success(*args, **kwargs):
     resp = Mock()
@@ -244,9 +245,21 @@ class TestCheckRun(LocalTestCase):
         self.assertEqual(self.graphite_check.calculated_status,
                          Service.CALCULATED_PASSING_STATUS)
 
-    @patch('cabot.cabotapp.cloudwatch.????', fake_cloudwatch_response)
+    @patch('cabot.cabotapp.cloudwatch._get_boto_client', fake_boto_client)
     def test_cloudwatch_run(self):
         checkresults = self.cloudwatch_check.statuscheckresult_set.all()
+        self.assertEqual(len(checkresults), 0)
+        self.cloudwatch_check.run()
+        checkresults = self.cloudwatch_check.statuscheckresult_set.all()
+        self.assertEqual(len(checkresults), 1)
+        self.assertEqual(self.cloudwatch_check.calculated_status,
+                         Service.CALCULATED_FAILING_STATUS)
+
+        # Increasing value should make it pass
+        self.cloudwatch_check.value = '11.0'
+        self.cloudwatch_check.save()
+        self.assertEqual(self.cloudwatch_check.calculated_status,
+                         Service.CALCULATED_PASSING_STATUS)
 
     @patch('cabot.cabotapp.jenkins.requests.get', fake_jenkins_success)
     def test_jenkins_success(self):

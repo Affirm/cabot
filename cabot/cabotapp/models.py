@@ -552,6 +552,7 @@ class StatusCheck(PolymorphicModel):
         null=True,
         help_text='The statistic to keep track of over the period',
     )
+    # TODO: remove (this version of boto doesn't support)
     percentile = models.IntegerField(
         null=True,
         help_text='Percentile to look at (optional)',
@@ -872,6 +873,7 @@ class GraphiteStatusCheck(MetricStatusCheck):
                                    fill_empty=self.fill_empty,
                                    where_clause=self.where_clause,
                                    time_delta=self.interval * 6)
+        #logger.exception(self.series)
 
 class InfluxDBStatusCheck(MetricStatusCheck):
     class Meta(MetricStatusCheck.Meta):
@@ -888,7 +890,6 @@ class InfluxDBStatusCheck(MetricStatusCheck):
                                    fill_empty=self.fill_empty,
                                    where_clause=self.where_clause,
                                    time_delta=self.interval * 6)
-        return super(MetricStatusCheck, self).get_series()
 
 class CloudwatchStatusCheck(MetricStatusCheck):
     class Meta(MetricStatusCheck.Meta):
@@ -904,9 +905,8 @@ class CloudwatchStatusCheck(MetricStatusCheck):
                                               self.dimension_name,
                                               self.dimension_value,
                                               self.granularity,
-                                              statistic=self.statistic,
-                                              percentile=self.percentile)
-        return super(MetricStatusCheck, self).get_series()
+                                              self.statistic)
+        logger.exception(self.series)
 
 class HttpStatusCheck(StatusCheck):
 

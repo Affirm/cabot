@@ -116,7 +116,6 @@ def _convert_influx_to_graphite(resp):
         else:
             for ts, value, group in series['points']:
                 data['%s.%s' % (name, group)].append((value, ts))
-
     return [dict(target=key, datapoints=value)
             for key, value in data.iteritems()]
 
@@ -131,7 +130,6 @@ def get_matching_metrics(pattern):
     client = _get_influxdb_client()
     resp = client.query(query, chunked=True)
     metrics = []
-
     for point in resp[0]['points']:
         series = point[1]
         metrics.append(dict(is_leaf=1, name=series, path=series))

@@ -7,7 +7,7 @@
         'Unit': 'Count'
       },
       {
-        'Average': 5.0,
+        'Average': 10.0,
         'Timestamp': datetime.datetime(2017, 1, 4, 0, 20, tzinfo=tzutc()),
         'Unit': 'Count'
       },
