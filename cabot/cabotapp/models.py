@@ -7,6 +7,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 from .jenkins import get_job_status
 from .alert import (send_alert, AlertPluginUserData)
 from .calendar import get_events
+from .cloudwatch import cloudwatch_parse_metric
 from .influx import parse_metric
 from .tasks import update_service, update_instance
 from datetime import datetime, timedelta
@@ -506,6 +507,56 @@ class StatusCheck(PolymorphicModel):
         help_text='Alert if build queued for more than this many minutes.',
     )
 
+    # Unfortunately
+    # Cloudwatch checks
+    # I guess it's pretty different since you can't do a where field...
+    namespace = models.CharField(
+        max_length=64,
+        null=True,
+        help_text='Namespace of the Cloudwatch Alarm.',
+    )
+    metric_name = models.CharField(
+        max_length=64,
+        null=True,
+        help_text='The metric name.',
+    )
+    dimension_name = models.CharField(
+        max_length=64,
+        null=True,
+        help_text='The name of the dimension you want to look at.',
+    )
+    dimension_value = models.CharField(
+        max_length=64,
+        null=True,
+        help_text='The value of the dimension you want to look at.',
+    )
+    granularity = models.IntegerField(
+        default=300,
+        help_text='Number of seconds in each period. Must be a multiple of 60',
+    )
+    SAMPLECOUNT = 'CT'
+    AVERAGE = 'AVG'
+    SUM = 'SUM'
+    MINIMUM = 'MIN'
+    MAXIMUM = 'MAX'
+    statistic_choices = (
+        (SAMPLECOUNT, 'SampleCount'),
+        (AVERAGE, 'Average'),
+        (SUM, 'Sum'),
+        (MINIMUM, 'Minimum'),
+        (MAXIMUM, 'Maximum'),
+    )
+    statistic = models.CharField(
+        max_length=3,
+        choices=statistic_choices,
+        null=True,
+        help_text='The statistic to keep track of over the period',
+    )
+    percentile = models.IntegerField(
+        null=True,
+        help_text='Percentile to look at (optional)',
+    )
+
     class Meta(PolymorphicModel.Meta):
         ordering = ['name']
 
@@ -617,10 +668,11 @@ class ICMPStatusCheck(StatusCheck):
         return result
 
 
-class GraphiteStatusCheck(StatusCheck):
+class MetricStatusCheck(StatusCheck):
     """
-    Uses influx, not graphite
+    Generic status check for any numeric metric--handles >, <, =, etc.
     """
+    series = None
 
     class Meta(StatusCheck.Meta):
         proxy = True
@@ -644,14 +696,17 @@ class GraphiteStatusCheck(StatusCheck):
                                                 self.expected_num_hosts)
             if self.expected_num_hosts > actual_hosts:
                 return u'Hosts missing%s' % hosts_string
+
         if self.expected_num_metrics > 0:
             metrics_string = u'%s | %s/%s metrics' % (name,
-                                                actual_metrics,
-                                                self.expected_num_metrics)
+                                                      actual_metrics,
+                                                      self.expected_num_metrics)
             if self.expected_num_metrics > actual_metrics:
                 return u'Metrics condition missed for %s' % metrics_string
+
         if failure_value is None:
-            return "Failed to get metric from Graphite"
+            return "Failed to get metric from %s" % self.check_category
+
         return u"%0.1f %s %0.1f%s" % (
             failure_value,
             self.check_type,
@@ -659,13 +714,18 @@ class GraphiteStatusCheck(StatusCheck):
             hosts_string
         )
 
+    def _get_series(self):
+        """
+        Implemented by sub-classes
+        """
+        pass
+
     def _run(self):
-        series = parse_metric(self.metric,
-                              selector=self.metric_selector,
-                              group_by=self.group_by,
-                              fill_empty=self.fill_empty,
-                              where_clause=self.where_clause,
-                              time_delta=self.interval * 6)
+        self._get_series()
+        if self.series is None:
+            logger.Exception('A really bad thing happened')
+            return
+        series = self.series
 
         result = StatusCheckResult(
             check=self,
@@ -796,10 +856,57 @@ class GraphiteStatusCheck(StatusCheck):
         return result
 
 
-class InfluxDBStatusCheck(GraphiteStatusCheck):
-    class Meta(GraphiteStatusCheck.Meta):
+
+class GraphiteStatusCheck(MetricStatusCheck):
+    class Meta(MetricStatusCheck.Meta):
         proxy = True
 
+    @property
+    def check_category(self):
+        return "Graphite check"
+
+    def _get_series(self):
+        self.series = parse_metric(self.metric,
+                                   selector=self.metric_selector,
+                                   group_by=self.group_by,
+                                   fill_empty=self.fill_empty,
+                                   where_clause=self.where_clause,
+                                   time_delta=self.interval * 6)
+
+class InfluxDBStatusCheck(MetricStatusCheck):
+    class Meta(MetricStatusCheck.Meta):
+        proxy = True
+
+    @property
+    def check_category(self):
+        return "InfluxDB check"
+
+    def _get_series(self):
+        self.series = parse_metric(self.metric,
+                                   selector=self.metric_selector,
+                                   group_by=self.group_by,
+                                   fill_empty=self.fill_empty,
+                                   where_clause=self.where_clause,
+                                   time_delta=self.interval * 6)
+        return super(MetricStatusCheck, self).get_series()
+
+class CloudwatchStatusCheck(MetricStatusCheck):
+    class Meta(MetricStatusCheck.Meta):
+        proxy = True
+
+    @property
+    def check_category(self):
+        return "Cloudwatch Check"
+
+    def _get_series(self):
+        self.series = cloudwatch_parse_metric(self.namespace,
+                                              self.metric_name,
+                                              self.dimension_name,
+                                              self.dimension_value,
+                                              self.granularity,
+                                              self.statistic,
+                                              self.percentile)
+        return super(MetricStatusCheck, self).get_series()
 
 class HttpStatusCheck(StatusCheck):
 

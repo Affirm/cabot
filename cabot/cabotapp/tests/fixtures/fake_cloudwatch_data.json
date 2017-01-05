@@ -1,0 +1,44 @@
+{
+  'Datapoints':
+    [
+      {
+        'Average': 5.0,
+        'Timestamp': datetime.datetime(2017, 1, 4, 0, 15, tzinfo=tzutc()),
+        'Unit': 'Count'
+      },
+      {
+        'Average': 5.0,
+        'Timestamp': datetime.datetime(2017, 1, 4, 0, 20, tzinfo=tzutc()),
+        'Unit': 'Count'
+      },
+      {
+        'Average': 5.0,
+        'Timestamp': datetime.datetime(2017, 1, 4, 0, 25, tzinfo=tzutc()),
+        'Unit': 'Count'
+      },
+      {
+        'Average': 5.0,
+        'Timestamp': datetime.datetime(2017, 1, 4, 0, 0, tzinfo=tzutc()),
+        'Unit': 'Count'
+      },
+      {
+        'Average': 5.0,
+        'Timestamp': datetime.datetime(2017, 1, 4, 0, 5, tzinfo=tzutc()),
+        'Unit': 'Count'
+      }
+    ],
+  'Label': 'FakeTestData',
+  'ResponseMetadata':
+    {
+      'HTTPHeaders':
+        {
+          'content-length': '1337',
+          'content-type': 'text/xml',
+          'date': 'Thu, 05 Jan 2017 04:40:43 GMT',
+          'x-amzn-requestid': 'hi'
+        },
+      'HTTPStatusCode': 200,
+      'RequestId': 'hello',
+      'RetryAttempts': 0
+    }
+}

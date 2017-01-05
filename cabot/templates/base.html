@@ -69,6 +69,9 @@
                   <a href="{% url "create-graphite-check" %}?service={{ service.id }}&instance={{ instance.id }}" class=""><i class="glyphicon glyphicon-signal" title="Add new metric check"></i> Graphite check</a>
                 </li>
                 <li>
+                  <a href="{% url "create-cloudwatch-check" %}?service={{ service.id }}&instance={{ instance.id }}" class=""><i class="glyphicon glyphicon-signal" title="Add new metrics check"></i> Cloudwatch check</a>
+                </li>
+                <li>
                   <a href="{% url "create-http-check" %}?service={{ service.id }}&instance={{ instance.id }}" class="" title="Add new Http check"><i class="glyphicon glyphicon-arrow-up"></i> Http check</a>
                 </li>
                 <li>

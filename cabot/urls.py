@@ -15,7 +15,8 @@ from cabot.cabotapp.views import (
         StatusCheckDeleteView, StatusCheckListView, StatusCheckDetailView,
         AuthComplete, LoginError,
         StatusCheckResultDetailView, StatusCheckReportView,
-        UserProfileUpdateAlert,
+        UserProfileUpdateAlert, CloudwatchCheckCreateView, CloudwatchCheckUpdateView,
+        duplicate_cloudwatch_check
 )
 
 from cabot.cabotapp.views import (
@@ -103,6 +104,12 @@ urlpatterns = patterns('',
         view=GraphiteCheckUpdateView.as_view(), name='update-graphite-check'),
     url(r'^graphitecheck/duplicate/(?P<pk>\d+)/',
         view=duplicate_graphite_check, name='duplicate-graphite-check'),
+    url(r'^cloudwatchcheck/create/',
+        view=CloudwatchCheckCreateView.as_view(), name='create-cloudwatch-check'),
+    url(r'^cloudwatchcheck/update/(?P<pk>\d+)/',
+        view=CloudwatchCheckUpdateView.as_view(), name='update-cloudwatch-check'),
+    url(r'^cloudwatchcheck/duplicate/(?P<pk>\d+)/',
+        view=duplicate_cloudwatch_check, name='duplicate-cloudwatch-check'),
     url(r'^httpcheck/create/', view=HttpCheckCreateView.as_view(),
         name='create-http-check'),
     url(r'^httpcheck/update/(?P<pk>\d+)/',
