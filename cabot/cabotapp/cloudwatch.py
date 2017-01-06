@@ -9,20 +9,25 @@ def _get_boto_client():
     Get boto client from cloudwatch
     :return: nothing
     """
-    logging.info('making a client')
-    #return boto3.client('cloudwatch')
-    return None
+    return boto3.client('cloudwatch')
 
-
-def _convert_cloudwatch_to_graphite(json_resp, namespace):
+#TODO: !!!!!
+# remove whitespace??????
+# convert datetime to timestamp
+# change ' to ". then it should be json compatible i think!!
+def _convert_cloudwatch_to_graphite(resp, namespace):
     """
     Covert the cloudwatch response into graphite compatible output
     TODO: better generic format
     :param resp: cloudwatch response
     :return: graphite-style output
     """
+    # First convert the data to json format...it's pretty close
+    resp.replace("'", '"')
+    # find the datetimes and replace with timestamp
+
     data = []
-    for datapoint in json_resp['Datapoints']:
+    for datapoint in resp['Datapoints']:
         value = datapoint['Average']
         dt = datapoint['Timestamp']
         ts = int((dt - datetime(1970, 1, 1)).total_seconds())
@@ -37,7 +42,6 @@ def _convert_cloudwatch_to_graphite(json_resp, namespace):
 def cloudwatch_parse_metric(namespace, metric_name, dimension_name, dimension_value,
                  granularity, statistic):
     _boto_client = _get_boto_client()
-    logging.info("made boto client")
 
     if _boto_client is None:
         logging.exception('No boto client found.')
@@ -59,8 +63,10 @@ def cloudwatch_parse_metric(namespace, metric_name, dimension_name, dimension_va
             Period=granularity,
             Statistic=statistic
         )
-        logging.info(resp)
-        return _convert_cloudwatch_to_graphite(json.loads(resp), namespace)
+        #logging.info(resp)
+        return _convert_cloudwatch_to_graphite(resp, namespace)
     except Exception as e:
         # todo: gonna change this a lot probs
         logging.exception("Boto get didn't work %s" % e)
+
+

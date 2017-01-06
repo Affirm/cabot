@@ -25,7 +25,7 @@ from cabot.cabotapp.models import (
     StatusCheckResult, UserProfile)
 from cabot.cabotapp.views import StatusCheckReportForm
 from cabot.cabotapp.alert import send_alert
-
+import logging
 
 def get_content(fname):
     path = os.path.join(os.path.dirname(__file__), 'fixtures/%s' % fname)
@@ -135,9 +135,9 @@ def fake_graphite_response(*args, **kwargs):
 
 
 def fake_boto_client(*args, **kwargs):
-    logging.info('no fn idea whats goin on rn')
     resp = Mock()
-    resp.get_metrics_statistics.return_value = json.loads(get_content('cloudwatch_response.json'))
+    resp.get_metrics_statistics.return_value = get_content('cloudwatch_response.json')
+    #resp.get_metrics_statistics.return_value = json.loads(get_content('cloudwatch_response.json'))
     return resp
 
 
