@@ -5,11 +5,6 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.core.urlresolvers import reverse_lazy
 from django.conf import settings
 from models import (StatusCheck,
-                    GraphiteStatusCheck,
-                    JenkinsStatusCheck,
-                    HttpStatusCheck,
-                    ICMPStatusCheck,
-                    InfluxDBStatusCheck,
                     StatusCheckResult,
                     UserProfile,
                     Service,
@@ -51,12 +46,12 @@ import re
 
 class LoginRequiredMixin(object):
 
-    @method_decorator(login_required)
+    #@method_decorator(login_required)
     def dispatch(self, *args, **kwargs):
         return super(LoginRequiredMixin, self).dispatch(*args, **kwargs)
 
 
-@login_required
+#@login_required
 def subscriptions(request):
     """ Simple list of all checks """
     t = loader.get_template('cabotapp/subscriptions.html')
@@ -70,7 +65,7 @@ def subscriptions(request):
     return HttpResponse(t.render(c))
 
 
-@login_required
+#@login_required
 def run_status_check(request, pk):
     """Runs a specific check"""
     _run_status_check(check_or_id=pk)
@@ -821,7 +816,7 @@ def jsonify(d):
     return HttpResponse(json.dumps(d), content_type='application/json')
 
 
-@login_required
+#@login_required
 def graphite_api_data(request):
     metric = request.GET.get('metric')
     data = None

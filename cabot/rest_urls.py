@@ -1,5 +1,9 @@
 from polymorphic import PolymorphicModel
 from cabot.cabotapp import models, alert
+from cabot.cabotapp.plugins.statuscheck.jenkins import JenkinsStatusCheck
+from cabot.cabotapp.plugins.statuscheck.graphite import GraphiteStatusCheck
+from cabot.cabotapp.plugins.statuscheck.http import HttpStatusCheck
+from cabot.cabotapp.plugins.statuscheck.icmp import ICMPStatusCheck
 from rest_framework import routers, serializers, viewsets, mixins
 import logging
 
@@ -86,12 +90,12 @@ router.register(r'status_checks', create_viewset(
 ))
 
 router.register(r'icmp_checks', create_viewset(
-    arg_model=models.ICMPStatusCheck,
+    arg_model=ICMPStatusCheck,
     arg_fields=status_check_fields,
 ))
 
 router.register(r'graphite_checks', create_viewset(
-    arg_model=models.GraphiteStatusCheck,
+    arg_model=GraphiteStatusCheck,
     arg_fields=status_check_fields + (
         'metric',
         'check_type',
@@ -102,7 +106,7 @@ router.register(r'graphite_checks', create_viewset(
 ))
 
 router.register(r'http_checks', create_viewset(
-    arg_model=models.HttpStatusCheck,
+    arg_model=HttpStatusCheck,
     arg_fields=status_check_fields + (
         'endpoint',
         'username',
@@ -115,7 +119,7 @@ router.register(r'http_checks', create_viewset(
 ))
 
 router.register(r'jenkins_checks', create_viewset(
-    arg_model=models.JenkinsStatusCheck,
+    arg_model=JenkinsStatusCheck,
     arg_fields=status_check_fields + (
         'max_queued_build_time',
     ),

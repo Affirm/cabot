@@ -20,9 +20,12 @@ import base64
 from mock import Mock, patch
 
 from cabot.cabotapp.models import (
-    GraphiteStatusCheck, JenkinsStatusCheck,
-    HttpStatusCheck, ICMPStatusCheck, Service, Instance,
+    Service, Instance,
     StatusCheckResult, UserProfile)
+from cabot.cabotapp.plugins.statuscheck.jenkins import JenkinsStatusCheck
+from cabot.cabotapp.plugins.statuscheck.graphite import GraphiteStatusCheck
+from cabot.cabotapp.plugins.statuscheck.http import HttpStatusCheck
+from cabot.cabotapp.plugins.statuscheck.icmp import ICMPStatusCheck
 from cabot.cabotapp.views import StatusCheckReportForm
 from cabot.cabotapp.alert import send_alert
 

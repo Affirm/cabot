@@ -1,4 +1,4 @@
-from . import GraphiteStatusCheck
+from .graphite import GraphiteStatusCheck
 
 class InfluxDBStatusCheck(GraphiteStatusCheck):
     class Meta(GraphiteStatusCheck.Meta):
