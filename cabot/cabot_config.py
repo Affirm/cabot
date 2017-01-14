@@ -30,3 +30,11 @@ CABOT_PLUGINS_ENABLED = os.environ.get('CABOT_PLUGINS_ENABLED',
         'cabot_alert_email',
         'cabot_alert_pagerduty'
     ]))
+STATUS_CHECKS_ENABLED = os.environ.get('STATUS_CHECKS_ENABLED',
+    ','.join([
+        'cabot.plugins.graphite_status_check',
+        'cabot.plugins.icmp_status_check',
+        'cabot.plugins.jenkins_status_check',
+        'cabot.plugins.influx_status_check',
+        'cabot.plugins.http_status_check'
+    ]))

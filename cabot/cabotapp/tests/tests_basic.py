@@ -22,10 +22,10 @@ from mock import Mock, patch
 from cabot.cabotapp.models import (
     Service, Instance,
     StatusCheckResult, UserProfile)
-from cabot.cabotapp.plugins.statuscheck.jenkins import JenkinsStatusCheck
-from cabot.cabotapp.plugins.statuscheck.graphite import GraphiteStatusCheck
-from cabot.cabotapp.plugins.statuscheck.http import HttpStatusCheck
-from cabot.cabotapp.plugins.statuscheck.icmp import ICMPStatusCheck
+from cabot.plugins.jenkins_status_check.models import JenkinsStatusCheck
+from cabot.plugins.graphite_status_check.models import GraphiteStatusCheck
+from cabot.plugins.http_status_check.models import HttpStatusCheck
+from cabot.plugins.icmp_status_check.models import ICMPStatusCheck
 from cabot.cabotapp.views import StatusCheckReportForm
 from cabot.cabotapp.alert import send_alert
 

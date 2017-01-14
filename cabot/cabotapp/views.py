@@ -11,11 +11,11 @@ from models import (StatusCheck,
                     Instance,
                     Shift,
                     get_duty_officers)
-from plugins.statuscheck.jenkins import JenkinsStatusCheck
-from plugins.statuscheck.graphite import GraphiteStatusCheck
-from plugins.statuscheck.http import HttpStatusCheck
-from plugins.statuscheck.icmp import ICMPStatusCheck
-from plugins.statuscheck.influx import InfluxDBStatusCheck
+from cabot.plugins.jenkins_status_check.models import JenkinsStatusCheck
+from cabot.plugins.graphite_status_check.models import GraphiteStatusCheck
+from cabot.plugins.http_status_check.models import HttpStatusCheck
+from cabot.plugins.icmp_status_check.models import ICMPStatusCheck
+from cabot.plugins.influx_status_check.models import InfluxDBStatusCheck
 
 from tasks import run_status_check as _run_status_check
 from django.contrib.auth.decorators import login_required
