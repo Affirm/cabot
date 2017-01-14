@@ -134,8 +134,10 @@ for plugin in CABOT_PLUGINS_ENABLED.split(","):
     # Hack to clean up if versions of plugins specified
     exploded = re.split(r'[<>=]+', plugin)
     CABOT_PLUGINS_ENABLED_PARSED.append(exploded[0])
+STATUS_CHECKS_ENABLED_PARSED = STATUS_CHECKS_ENABLED.split(",")
 
 INSTALLED_APPS += tuple(CABOT_PLUGINS_ENABLED_PARSED)
+INSTALLED_APPS += tuple(STATUS_CHECKS_ENABLED_PARSED)
 
 COMPRESS_PRECOMPILERS = (
     ('text/coffeescript', 'coffee --compile --stdio'),

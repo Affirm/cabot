@@ -1,12 +1,12 @@
-from cabot.cabotapp.jenkins import get_job_status
+from .jenkins import get_job_status
 from cabot.cabotapp.models import StatusCheck, StatusCheckResult
-
 
 
 class JenkinsStatusCheck(StatusCheck):
 
     class Meta(StatusCheck.Meta):
         proxy = True
+        verbose_name = "jenkinsstatuscheck"
 
     @property
     def check_category(self):

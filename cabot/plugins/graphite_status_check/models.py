@@ -1,5 +1,5 @@
 from cabot.cabotapp.models import StatusCheck, StatusCheckResult
-from cabot.cabotapp.influx import parse_metric
+from .influx import parse_metric
 
 from celery.utils.log import get_task_logger
 import json
@@ -15,6 +15,7 @@ class GraphiteStatusCheck(StatusCheck):
 
     class Meta(StatusCheck.Meta):
         proxy = True
+        verbose_name = "graphitestatuscheck"
 
     @property
     def check_category(self):

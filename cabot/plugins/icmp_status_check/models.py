@@ -7,6 +7,7 @@ class ICMPStatusCheck(StatusCheck):
 
     class Meta(StatusCheck.Meta):
         proxy = True
+        verbose_name = "icmpstatuscheck"
 
     @property
     def check_category(self):
