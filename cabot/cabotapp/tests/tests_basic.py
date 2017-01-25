@@ -160,7 +160,7 @@ def fake_http_404_response(*args, **kwargs):
 
 
 def throws_timeout(*args, **kwargs):
-    raise requests.RequestException(u'фиктивная ошибка innit')
+    raise requests.RequestException(u'no russian in mysql')
 
 
 class TestCheckRun(LocalTestCase):
@@ -261,7 +261,7 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.jenkins_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.jenkins_check.last_result().succeeded)
-        self.assertIn(u'Error fetching from Jenkins - фиктивная ошибка innit',
+        self.assertIn(u'Error fetching from Jenkins - no russian in mysql',
                       self.jenkins_check.last_result().error)
 
     @patch('cabot.cabotapp.models.requests.get', fake_http_200_response)
@@ -281,7 +281,7 @@ class TestCheckRun(LocalTestCase):
         self.assertEqual(self.http_check.calculated_status,
                          Service.CALCULATED_FAILING_STATUS)
         # Unicode
-        self.http_check.text_match = u'как закалялась сталь'
+        self.http_check.text_match = u'no russian in mysql'
         self.http_check.save()
         self.http_check.run()
         self.assertFalse(self.http_check.last_result().succeeded)
@@ -296,7 +296,7 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.http_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.http_check.last_result().succeeded)
-        self.assertIn(u'Request error occurred: фиктивная ошибка innit',
+        self.assertIn(u'Request error occurred: no russian in mysql',
                       self.http_check.last_result().error)
 
     @patch('cabot.cabotapp.models.requests.request', fake_http_404_response)

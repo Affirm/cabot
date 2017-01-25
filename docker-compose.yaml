@@ -29,10 +29,12 @@ services:
     image: redis
 
   db:
-    image: postgres
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=test
 
   wait:
     image: cabot:web
-    command: dockerize -wait tcp://db:5432 -timeout 20s
+    command: dockerize -wait tcp://db:3306 -timeout 60s
     depends_on:
       - db
