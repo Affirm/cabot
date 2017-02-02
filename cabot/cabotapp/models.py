@@ -8,7 +8,6 @@ from .jenkins import get_job_status
 from .alert import (send_alert, AlertPluginUserData)
 from .calendar import get_events
 from .influx import parse_metric
-from .tasks import update_service, update_instance
 from datetime import datetime, timedelta
 from django.utils import timezone
 
@@ -217,6 +216,7 @@ class CheckGroupMixin(models.Model):
 
     def all_failing_checks(self):
         return self.active_status_checks().exclude(calculated_status=self.CALCULATED_PASSING_STATUS)
+
 
 class Service(CheckGroupMixin):
 
@@ -565,8 +565,11 @@ class StatusCheck(PolymorphicModel):
             self.cached_health = ''
             self.calculated_status = Service.CALCULATED_PASSING_STATUS
         ret = super(StatusCheck, self).save(*args, **kwargs)
-        self.update_related_services()
-        self.update_related_instances()
+        for service in self.service_set.all():
+            service.update_status()
+        for instance in self.instance_set.all():
+            instance.update_status()
+
         return ret
 
     def duplicate(self, inst_set=(), serv_set=()):
@@ -579,15 +582,6 @@ class StatusCheck(PolymorphicModel):
             linked.status_checks.add(new_check)
         return new_check.pk
 
-    def update_related_services(self):
-        services = self.service_set.all()
-        for service in services:
-            update_service.delay(service.id)
-
-    def update_related_instances(self):
-        instances = self.instance_set.all()
-        for instance in instances:
-            update_instance.delay(instance.id)
 
 class ICMPStatusCheck(StatusCheck):
 

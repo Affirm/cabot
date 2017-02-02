@@ -56,23 +56,14 @@ def update_services(ignore_result=True):
 
 @task(ignore_result=True)
 def update_service(service_or_id):
-    from .models import Service
-    if not isinstance(service_or_id, Service):
-        service = Service.objects.get(id=service_or_id)
-    else:
-        service = service_or_id
-    service.update_status()
+    # Avoid importerrors and the like from legacy scheduling
+    return
 
 
 @task(ignore_result=True)
 def update_instance(instance_or_id):
-    from .models import Instance
-    if not isinstance(instance_or_id, Instance):
-        instance = Instance.objects.get(id=instance_or_id)
-    else:
-        instance = instance_or_id
-    instance.update_status()
-
+    # Avoid importerrors and the like from legacy scheduling
+    return
 
 @task(ignore_result=True)
 def update_shifts():
