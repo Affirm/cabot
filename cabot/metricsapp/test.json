@@ -1,0 +1,65 @@
+{ "targets": [
+              {
+                "bucketAggs": [
+                  {
+                    "field": "@timestamp",
+                    "id": "2",
+                    "settings": {
+                      "interval": "auto",
+                      "min_doc_count": 0,
+                      "trimEdges": 0
+                    },
+                    "type": "date_histogram"
+                  }
+                ],
+                "dsType": "elasticsearch",
+                "hide": false,
+                "metrics": [
+                  {
+                    "field": "value",
+                    "id": "1",
+                    "meta": {
+                      
+                    },
+                    "settings": {
+                      
+                    },
+                    "type": "sum"
+                  }
+                ],
+                "query": "module=affirm.users.autopay.job.charge.count",
+                "refId": "A",
+                "timeField": "@timestamp"
+              },
+              {
+                "bucketAggs": [
+                  {
+                    "field": "@timestamp",
+                    "id": "2",
+                    "settings": {
+                      "interval": "auto",
+                      "min_doc_count": 0,
+                      "trimEdges": 0
+                    },
+                    "type": "date_histogram"
+                  }
+                ],
+                "dsType": "elasticsearch",
+                "metrics": [
+                  {
+                    "field": "value",
+                    "id": "1",
+                    "meta": {
+                      
+                    },
+                    "settings": {
+                      
+                    },
+                    "type": "sum"
+                  }
+                ],
+                "query": "module=affirm.users.autopay.job.user.count",
+                "refId": "B",
+                "timeField": "@timestamp"
+              }
+            ]}
