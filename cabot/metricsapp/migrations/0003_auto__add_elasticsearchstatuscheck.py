@@ -8,17 +8,17 @@ from django.db import models
 class Migration(SchemaMigration):
 
     def forwards(self, orm):
-        # Adding model 'ElasticsearchInstance'
-        db.create_table(u'metricsapp_elasticsearchinstance', (
-            (u'metricsinstancebase_ptr', self.gf('django.db.models.fields.related.OneToOneField')(to=orm['metricsapp.MetricsInstanceBase'], unique=True, primary_key=True)),
-            ('urls', self.gf('django.db.models.fields.TextField')(max_length=250)),
+        # Adding model 'ElasticsearchStatusCheck'
+        db.create_table(u'metricsapp_elasticsearchstatuscheck', (
+            (u'metricsstatuscheckbase_ptr', self.gf('django.db.models.fields.related.OneToOneField')(to=orm['metricsapp.MetricsStatusCheckBase'], unique=True, primary_key=True)),
+            ('queries', self.gf('django.db.models.fields.TextField')(max_length=10000)),
         ))
-        db.send_create_signal('metricsapp', ['ElasticsearchInstance'])
+        db.send_create_signal('metricsapp', ['ElasticsearchStatusCheck'])
 
 
     def backwards(self, orm):
-        # Deleting model 'ElasticsearchInstance'
-        db.delete_table(u'metricsapp_elasticsearchinstance')
+        # Deleting model 'ElasticsearchStatusCheck'
+        db.delete_table(u'metricsapp_elasticsearchstatuscheck')
 
 
     models = {
@@ -72,13 +72,18 @@ class Migration(SchemaMigration):
             'model': ('django.db.models.fields.CharField', [], {'max_length': '100'}),
             'name': ('django.db.models.fields.CharField', [], {'max_length': '100'})
         },
-        'metricsapp.elasticsearchinstance': {
-            'Meta': {'object_name': 'ElasticsearchInstance', '_ormbases': ['metricsapp.MetricsInstanceBase']},
-            u'metricsinstancebase_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': "orm['metricsapp.MetricsInstanceBase']", 'unique': 'True', 'primary_key': 'True'}),
+        'metricsapp.elasticsearchsource': {
+            'Meta': {'object_name': 'ElasticsearchSource', '_ormbases': ['metricsapp.MetricsSourceBase']},
+            u'metricssourcebase_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': "orm['metricsapp.MetricsSourceBase']", 'unique': 'True', 'primary_key': 'True'}),
             'urls': ('django.db.models.fields.TextField', [], {'max_length': '250'})
         },
-        'metricsapp.metricsinstancebase': {
-            'Meta': {'object_name': 'MetricsInstanceBase'},
+        'metricsapp.elasticsearchstatuscheck': {
+            'Meta': {'ordering': "['name']", 'object_name': 'ElasticsearchStatusCheck', '_ormbases': ['metricsapp.MetricsStatusCheckBase']},
+            u'metricsstatuscheckbase_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': "orm['metricsapp.MetricsStatusCheckBase']", 'unique': 'True', 'primary_key': 'True'}),
+            'queries': ('django.db.models.fields.TextField', [], {'max_length': '10000'})
+        },
+        'metricsapp.metricssourcebase': {
+            'Meta': {'object_name': 'MetricsSourceBase'},
             u'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
             'name': ('django.db.models.fields.CharField', [], {'unique': 'True', 'max_length': '30'})
         },
@@ -87,7 +92,7 @@ class Migration(SchemaMigration):
             'check_type': ('django.db.models.fields.CharField', [], {'max_length': '30'}),
             'high_alert_importance': ('django.db.models.fields.CharField', [], {'default': "'ERROR'", 'max_length': '30'}),
             'high_alert_value': ('django.db.models.fields.FloatField', [], {'null': 'True'}),
-            'metrics_instance': ('django.db.models.fields.related.ForeignKey', [], {'to': "orm['metricsapp.MetricsInstanceBase']"}),
+            'source': ('django.db.models.fields.related.ForeignKey', [], {'to': "orm['metricsapp.MetricsSourceBase']"}),
             u'statuscheck_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': u"orm['cabotapp.StatusCheck']", 'unique': 'True', 'primary_key': 'True'}),
             'time_range': ('django.db.models.fields.IntegerField', [], {'default': '30'}),
             'warning_value': ('django.db.models.fields.FloatField', [], {'null': 'True'})

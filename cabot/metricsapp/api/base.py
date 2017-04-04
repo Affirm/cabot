@@ -3,6 +3,7 @@ import json
 import time
 from cabot.cabotapp.models import Service, StatusCheckResult
 
+
 logger = get_task_logger(__name__)
 
 
@@ -78,7 +79,7 @@ def run_metrics_check(check):
 
     if series['error'] is True:
         result.succeeded = False
-        result.error = 'Error fetching metric from source'
+        result.error = 'Error fetching metric from source: {}: {}'.format(series.get('error_code'), series.get('error_message'))
         logger.exception('Error fetching metrics: {}: {}'.format(series.get('error_code'),
                                                                  series.get('error_message')))
         return result
