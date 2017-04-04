@@ -1,6 +1,6 @@
 from django.db import models
 from cabot.cabotapp.models import CHECK_TYPES, Service, StatusCheck
-from cabot.metricsapp.api.base import run_metrics_check
+from cabot.metricsapp.api import run_metrics_check
 
 
 class MetricsSourceBase(models.Model):
@@ -61,12 +61,10 @@ class MetricsStatusCheckBase(StatusCheck):
         """
         Implemented by subclasses.
         Parse raw data from a data source into the format
-
         status:
         error_message:
         error_code:
         raw:
-
         # Parsed data
         data:
           - series: a.b.c.d
@@ -76,7 +74,6 @@ class MetricsStatusCheckBase(StatusCheck):
           - series: a.b.c.p.q
             datapoints:
               - [timestamp, value]
-
         :param check: the status check
         :return the parsed data
         """
