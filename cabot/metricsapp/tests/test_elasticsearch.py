@@ -226,7 +226,8 @@ class TestQueryValidation(TestCase):
 
         with self.assertRaises(ValueError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, '{} Metric unsupported: terms'.format(self.exception_message))
+            self.assertEqual(e.exception, '{} date_histogram must be the innermost aggregation (besides metrics)'
+                             .format(self.exception_message))
 
     def test_unsupported_metric(self):
         query = '{"aggs": {"agg": {"terms": {"field": "data"},' \

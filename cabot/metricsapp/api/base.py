@@ -79,7 +79,7 @@ def run_metrics_check(check):
 
     if series['error'] is True:
         result.succeeded = False
-        result.error = 'Error fetching metric from source: {}: {}'.format(series.get('error_code'), series.get('error_message'))
+        result.error = 'Error fetching metric from source'
         logger.exception('Error fetching metrics: {}: {}'.format(series.get('error_code'),
                                                                  series.get('error_message')))
         return result

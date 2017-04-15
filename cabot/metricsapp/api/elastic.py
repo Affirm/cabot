@@ -26,19 +26,20 @@ def validate_query(query):
 
         query = query['agg']
         if query.get('date_histogram'):
-            break
+            # If we found a date_histogram the rest of the aggs should be metrics
+            if not query.get('aggs'):
+                query_exception('No metric value')
 
-    # If we found a date_histogram the rest of the aggs should be metrics
-    if not query.get('aggs'):
-        query_exception('No metric value')
+            query = query['aggs']
+            for metric in query:
+                if metric not in ['min', 'max', 'avg', 'value_count', 'sum', 'cardinality',
+                                  'moving_avg', 'derivative', 'percentiles']:
+                    query_exception('Metric unsupported: {}'.format(metric))
+                if not query[metric].get(metric):
+                    query_exception('Metric name must be the same as metric type')
+            return
 
-    query = query['aggs']
-    for metric in query:
-        if metric not in ['min', 'max', 'avg', 'value_count', 'sum', 'cardinality', 'moving_avg', 'derivative',
-                          'percentiles']:
-            query_exception('Metric unsupported: {}'.format(metric))
-        if not query[metric].get(metric):
-            query_exception('Metric name must be the same as metric type')
+    query_exception('date_histogram must be the innermost aggregation (besides metrics)')
 
 
 def query_exception(exception_string):
