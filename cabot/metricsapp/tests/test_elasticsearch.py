@@ -198,9 +198,6 @@ class TestElasticsearchStatusCheck(TestCase):
 
 
 class TestQueryValidation(TestCase):
-    def setUp(self):
-        self.exception_message = 'Elasticsearch query not formatted correctly:'
-
     def test_valid_query(self):
         query = '{"aggs": {"agg": {"terms": {"field": "a1"},' \
                 '"aggs": {"agg": {"terms": {"field": "b2"},' \
@@ -210,24 +207,25 @@ class TestQueryValidation(TestCase):
         validate_query(json.loads(query))
 
     def test_not_agg(self):
+        """Aggregations must be named 'agg'"""
         query = '{"aggs": {"notagg": {"terms": {"field": "data"},' \
                 '"aggs": {"agg": {"date_histogram": {"field": "@timestamp","interval": "hour"},' \
                 '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}}}'
 
         with self.assertRaises(ValueError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, '{} Aggregations should be named "agg"'.format(
-                self.exception_message))
+            self.assertEqual(e.exception, 'Elasticsearch query format error: aggregations should be named "agg"')
 
     def test_external_date_hist(self):
+        """date_histogram must be the innermost aggregation"""
         query = '{"aggs": {"agg": {"date_histogram": {"field": "@timestamp","interval": "hour"},' \
                 '"aggs": {"agg": {"terms": {"field": "data"},' \
                 '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}}}'
 
         with self.assertRaises(ValueError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, '{} date_histogram must be the innermost aggregation (besides metrics)'
-                             .format(self.exception_message))
+            self.assertEqual(e.exception, 'Elasticsearch query format error: date_histogram must '
+                                          'be the innermost aggregation (besides metrics)')
 
     def test_unsupported_metric(self):
         query = '{"aggs": {"agg": {"terms": {"field": "data"},' \
@@ -236,7 +234,7 @@ class TestQueryValidation(TestCase):
 
         with self.assertRaises(ValueError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, '{} Metric unsupported: raw_document'.format(self.exception_message))
+            self.assertEqual(e.exception, 'Elasticsearch query format error: unsupported metric raw_document')
 
     def test_nonmatching_metric_name(self):
         query = '{"aggs": {"agg": {"terms": {"field": "data"},' \
@@ -245,5 +243,5 @@ class TestQueryValidation(TestCase):
 
         with self.assertRaises(ValueError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, '{} Metric name must be the same as metric type'.format(
-                self.exception_message))
+            self.assertEqual(e.exception, 'Elasticsearch query format error: metric name must '
+                                          'be the same as the metric type')

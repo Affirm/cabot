@@ -1,6 +1,4 @@
 from elasticsearch import Elasticsearch
-import json
-
 
 def create_es_client(urls):
     """
@@ -22,28 +20,24 @@ def validate_query(query):
     while query.get('aggs'):
         query = query['aggs']
         if not query.get('agg'):
-            query_exception('Aggregations should be named "agg"')
+            raise ValueError('Elasticsearch query format error: aggregations should be named "agg"')
 
         query = query['agg']
         if query.get('date_histogram'):
             # If we found a date_histogram the rest of the aggs should be metrics
             if not query.get('aggs'):
-                query_exception('No metric value')
+                raise ValueError('Elasticsearch query format error: query must include a metric')
 
             query = query['aggs']
             for metric in query:
                 if metric not in ['min', 'max', 'avg', 'value_count', 'sum', 'cardinality',
                                   'moving_avg', 'derivative', 'percentiles']:
-                    query_exception('Metric unsupported: {}'.format(metric))
+                    raise ValueError('Elasticsearch query format error: unsupported metric {}'.format(metric))
+
                 if not query[metric].get(metric):
-                    query_exception('Metric name must be the same as metric type')
+                    raise ValueError('Elasticsearch query format error: metric name must be the same '
+                                     'as the metric type')
             return
 
-    query_exception('date_histogram must be the innermost aggregation (besides metrics)')
-
-
-def query_exception(exception_string):
-    """
-    Exception raised for invalid query
-    :param exception_string: more specific exception details"""
-    raise ValueError('Elasticsearch query not formatted correctly: {}'.format(exception_string))
+    raise ValueError('Elasticsearch query format error: date_histogram must be the innermost'
+                     'aggregation (besides metrics)')
