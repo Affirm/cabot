@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError
-from django.forms import ModelForm
+from django.forms import ModelForm, ChoiceField
 from elasticsearch.client import ClusterClient
 from elasticsearch.exceptions import ConnectionError
 import json
@@ -40,6 +40,11 @@ class ElasticsearchStatusCheckForm(ModelForm):
             'active',
             'retries',
         )
+
+        def __init__(self, *args, **kwargs):
+            ret = super(ElasticsearchStatusCheckForm, self).__init__(*args, **kwargs)
+            self.fields['source'].queryset = ElasticsearchSource.objects.all()
+            return ret
 
     def clean_queries(self):
         """

@@ -13,6 +13,9 @@ class MetricsSourceBase(models.Model):
         help_text='Unique name for the data source',
     )
 
+    def __unicode__(self):
+        return self.name
+
 
 class MetricsStatusCheckBase(StatusCheck):
     class Meta:
