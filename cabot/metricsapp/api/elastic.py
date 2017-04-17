@@ -1,4 +1,13 @@
 from elasticsearch import Elasticsearch
+from enum import Enum
+
+
+class SupportedMetrics(Enum):
+    # Response includes the field "value"
+    METRICS_SINGLE = ['min', 'max', 'avg', 'value_count', 'sum', 'cardinality', 'moving_avg', 'derivative']
+    # Response includes the field "values"
+    METRICS_MULTIPLE = ['percentiles']
+
 
 def create_es_client(urls):
     """
@@ -30,8 +39,7 @@ def validate_query(query):
 
             query = query['aggs']
             for metric in query:
-                if metric not in ['min', 'max', 'avg', 'value_count', 'sum', 'cardinality',
-                                  'moving_avg', 'derivative', 'percentiles']:
+                if metric not in SupportedMetrics.METRICS_SINGLE.value + SupportedMetrics.METRICS_MULTIPLE.value:
                     raise ValueError('Elasticsearch query format error: unsupported metric {}'.format(metric))
 
                 if not query[metric].get(metric):

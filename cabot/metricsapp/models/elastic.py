@@ -1,9 +1,8 @@
 from django.db import models
-from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
 import json
 import logging
-from cabot.metricsapp.api import create_es_client
+from cabot.metricsapp.api import create_es_client, SupportedMetrics
 from .base import MetricsSourceBase, MetricsStatusCheckBase
 
 
@@ -137,10 +136,10 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
             if metric_name in ['key_as_string', 'key', 'doc_count']:
                 continue
 
-            elif metric_name in ['min', 'max', 'avg', 'value_count', 'sum', 'cardinality', 'moving_avg', 'derivative']:
+            elif metric_name in SupportedMetrics.METRICS_SINGLE.value:
                 name_to_series[metric_name] = [[bucket['key'], bucket[metric_name]['value']] for bucket in series]
 
-            elif metric_name in ['percentiles']:
+            elif metric_name in SupportedMetrics.METRICS_MULTIPLE.value:
                 # Create separate series for each percentile
                 for metric_subname in series[0][metric_name]['values']:
                     name_to_series[metric_subname] = []
