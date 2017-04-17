@@ -127,6 +127,7 @@ INSTALLED_APPS = (
     'jsonify',
     'cabot.cabotapp',
     'cabot.metricsapp',
+    'cabot.grafanaapp',
     'rest_framework',
     'social.apps.django_app.default',
 )
