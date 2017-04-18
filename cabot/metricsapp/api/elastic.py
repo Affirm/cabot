@@ -23,7 +23,7 @@ def validate_query(query, msg_prefix=ES_VALIDATION_MSG_PREFIX):
     type, e.g. max, min, avg...).
     :param query: the raw Elasticsearch query
     """
-    # Loop through all the aggregations, stopping when we hit a date_histogram
+    #Loop through all the aggregations, stopping when we hit a date_histogram
     query = query.get('aggs')
     if query is None:
         raise ValidationError('{}: query must at least include a date_histogram aggregation.'.format(msg_prefix))
