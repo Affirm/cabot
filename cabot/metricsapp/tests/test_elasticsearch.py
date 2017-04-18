@@ -6,7 +6,7 @@ class TestElasticsearchSource(TestCase):
     def setUp(self):
         self.es_source = ElasticsearchSource.objects.create(
             name='elastigirl',
-            url='localhost',
+            urls='localhost',
             index='i'
         )
 
@@ -14,11 +14,19 @@ class TestElasticsearchSource(TestCase):
         client = self.es_source.client
         self.assertIn('localhost', repr(client))
 
-    def test_client_whitespace(self):
-        """Whitespace should be stripped from the url"""
-        self.es_source.url = '\n\nlocalhost     '
+    def test_multiple_clients(self):
+        self.es_source.urls = 'localhost,127.0.0.1'
         self.es_source.save()
         client = self.es_source.client
         self.assertIn('localhost', repr(client))
+        self.assertIn('127.0.0.1', repr(client))
+
+    def test_client_whitespace(self):
+        """Whitespace should be stripped from the urls"""
+        self.es_source.urls = '\nlocalhost,       globalhost'
+        self.es_source.save()
+        client = self.es_source.client
+        self.assertIn('localhost', repr(client))
+        self.assertIn('globalhost', repr(client))
         self.assertNotIn('\nlocalhost', repr(client))
-        self.assertNotIn('localhost ', repr(client))
+        self.assertNotIn(' globalhost', repr(client))

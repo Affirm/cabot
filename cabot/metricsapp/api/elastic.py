@@ -1,10 +1,11 @@
 from elasticsearch import Elasticsearch
 
 
-def create_es_client(url):
+def create_es_client(urls):
     """
     Create an elasticsearch-py client
-    :param url: url string
+    :param urls: comma-separated string of urls
     :return: a new elasticsearch-py client
     """
-    return Elasticsearch([url.strip()])
+    urls = [url.strip() for url in urls.split(',')]
+    return Elasticsearch(urls)

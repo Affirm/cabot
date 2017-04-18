@@ -11,7 +11,7 @@ class Migration(SchemaMigration):
         # Adding model 'ElasticsearchSource'
         db.create_table(u'metricsapp_elasticsearchsource', (
             (u'metricssourcebase_ptr', self.gf('django.db.models.fields.related.OneToOneField')(to=orm['metricsapp.MetricsSourceBase'], unique=True, primary_key=True)),
-            ('url', self.gf('django.db.models.fields.TextField')(max_length=150)),
+            ('urls', self.gf('django.db.models.fields.TextField')(max_length=250)),
             ('index', self.gf('django.db.models.fields.TextField')(default='*', max_length=50)),
         ))
         db.send_create_signal('metricsapp', ['ElasticsearchSource'])
@@ -77,7 +77,7 @@ class Migration(SchemaMigration):
             'Meta': {'object_name': 'ElasticsearchSource', '_ormbases': ['metricsapp.MetricsSourceBase']},
             'index': ('django.db.models.fields.TextField', [], {'default': "'*'", 'max_length': '50'}),
             u'metricssourcebase_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': "orm['metricsapp.MetricsSourceBase']", 'unique': 'True', 'primary_key': 'True'}),
-            'url': ('django.db.models.fields.TextField', [], {'max_length': '150'})
+            'urls': ('django.db.models.fields.TextField', [], {'max_length': '250'})
         },
         'metricsapp.metricssourcebase': {
             'Meta': {'object_name': 'MetricsSourceBase'},
