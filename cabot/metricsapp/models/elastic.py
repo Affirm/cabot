@@ -10,11 +10,15 @@ class ElasticsearchSource(MetricsSourceBase):
     def __str__(self):
         return self.name
 
-    urls = models.TextField(
-        max_length=250,
+    url = models.TextField(
+        max_length=150,
         null=False,
-        help_text='Comma-separated list of Elasticsearch hosts. '
-                  'Format: "localhost" or "https://user:secret@localhost:443."'
+        help_text='The Elasticsearch host. Format: "localhost" or "https://user:secret@localhost:443."'
+    )
+    index = models.TextField(
+        max_length=50,
+        default='*',
+        help_text='Elasticsearch index name. Can include wildcards (*)',
     )
 
     _client = None
@@ -27,4 +31,4 @@ class ElasticsearchSource(MetricsSourceBase):
         """
         if self._client:
             return self._client
-        return create_es_client(self.urls)
+        return create_es_client(self.url)
