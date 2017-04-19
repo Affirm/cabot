@@ -13,6 +13,7 @@ class Migration(SchemaMigration):
             (u'metricssourcebase_ptr', self.gf('django.db.models.fields.related.OneToOneField')(to=orm['metricsapp.MetricsSourceBase'], unique=True, primary_key=True)),
             ('urls', self.gf('django.db.models.fields.TextField')(max_length=250)),
             ('index', self.gf('django.db.models.fields.TextField')(default='*', max_length=50)),
+            ('timeout', self.gf('django.db.models.fields.IntegerField')(default=60)),
         ))
         db.send_create_signal('metricsapp', ['ElasticsearchSource'])
 
@@ -77,6 +78,7 @@ class Migration(SchemaMigration):
             'Meta': {'object_name': 'ElasticsearchSource', '_ormbases': ['metricsapp.MetricsSourceBase']},
             'index': ('django.db.models.fields.TextField', [], {'default': "'*'", 'max_length': '50'}),
             u'metricssourcebase_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': "orm['metricsapp.MetricsSourceBase']", 'unique': 'True', 'primary_key': 'True'}),
+            'timeout': ('django.db.models.fields.IntegerField', [], {'default': '60'}),
             'urls': ('django.db.models.fields.TextField', [], {'max_length': '250'})
         },
         'metricsapp.metricssourcebase': {
