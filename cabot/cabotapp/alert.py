@@ -53,3 +53,20 @@ def update_alert_plugins():
     for plugin_subclass in AlertPlugin.__subclasses__():
         plugin_subclass.objects.get_or_create(title=plugin_subclass.name)
     return AlertPlugin.objects.all()
+
+
+def alert_duty_officer_missing_info(service_list, duty_officers):
+    """
+    Send a test alert of every relevant type to a duty_officer
+    and email the fallback if any fail.
+    """
+    alerts = []
+    for service in service_list:
+        alerts.extend([alert for alert in service.alerts.all()])
+
+    for alert in set(alerts):
+        try:
+            # TODO: is none ok
+            alert.send_alert(None, [], duty_officers)
+        except Exception as e:
+            # alert fallback officer
