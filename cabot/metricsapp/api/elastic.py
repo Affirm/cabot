@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from elasticsearch import Elasticsearch
 from enum import Enum
@@ -10,7 +11,7 @@ class SupportedMetrics(Enum):
     METRICS_MULTIPLE = ['percentiles']
 
 
-def create_es_client(urls, timeout=60):
+def create_es_client(urls, timeout=settings.ELASTICSEARCH_TIMEOUT):
     """
     Create an elasticsearch-py client
     :param urls: comma-separated string of urls

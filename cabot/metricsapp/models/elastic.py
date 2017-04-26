@@ -1,8 +1,9 @@
 import json
 import logging
 import time
-from django.db import models
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db import models
 from elasticsearch_dsl import Search
 from cabot.metricsapp.api import create_es_client, SupportedMetrics, validate_query
 from .base import MetricsSourceBase, MetricsStatusCheckBase
@@ -35,7 +36,7 @@ class ElasticsearchSource(MetricsSourceBase):
         help_text='Elasticsearch index name. Can include wildcards (*)',
     )
     timeout = models.IntegerField(
-        default=60,
+        default=settings.ELASTICSEARCH_TIMEOUT,
         help_text='Timeout for queries to this index.'
     )
 
