@@ -95,19 +95,17 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
                   - [timestamp, value]
                 check:
         """
-        parsed_data = dict()
-        parsed_data['raw'] = None
-        # Will be set to true if we encounter an error
-        parsed_data['error'] = False
-        parsed_data['data'] = []
+        # Error will be set to true if we encounter an error
+        parsed_data = dict(raw=None, error=False, data=[])
+        source = ElasticsearchSource.objects.get(name=self.source.name)
 
         for query in json.loads(self.queries):
-            source = ElasticsearchSource.objects.get(name=self.source.name)
             try:
                 search = Search().from_dict(query)
                 response = search.using(source.client).index(source.index).execute()
-                parsed_data['raw'] = response.to_dict()
-                parsed_data['data'].extend(self._es_rec([response.to_dict()['aggregations']]))
+                raw_data = response.to_dict()
+                parsed_data['raw'] = raw_data
+                parsed_data['data'].extend(self._parse_es_response([raw_data['aggregations']]))
             except Exception as e:
                 logger.exception('Error executing Elasticsearch query: {}'.format(query))
                 parsed_data['error_code'] = type(e).__name__
@@ -117,7 +115,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
 
         return parsed_data
 
-    def _es_rec(self, series, series_name=None):
+    def _parse_es_response(self, series, series_name=None):
         """
         Look through the json response recursively to go through all the aggregation buckets
         :param series: the aggregations part of the ES response
@@ -130,10 +128,9 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         if series[0].get('agg') is not None:
             data = []
             for subseries in series:
-                subseries_name = subseries.get('key')
                 # New name is "series_name.subseries_name" (if they exist)
-                data += self._es_rec(subseries['agg']['buckets'], '.'.join(filter(lambda x: x,
-                                                                                  [series_name, subseries_name])))
+                subseries_name = '.'.join(filter(None, [series_name, subseries.get('key')]))
+                data += self._parse_es_response(subseries['agg']['buckets'], subseries_name)
             return data
 
         # If there are no more aggregations, we've reached the metric
@@ -178,6 +175,6 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
 
         data = []
         for metric in name_to_series:
-            data.append({'series': '.'.join(filter(lambda x: x, [series_name, metric])),
-                         'datapoints': name_to_series[metric]})
+            metric_series_name = '.'.join(filter(None, [series_name, metric]))
+            data.append({'series': metric_series_name, 'datapoints': name_to_series[metric]})
         return data
