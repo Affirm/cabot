@@ -1,6 +1,8 @@
 import logging
 
+from django.core.mail import send_mail
 from django.db import models
+import os
 from polymorphic import PolymorphicModel
 
 logger = logging.getLogger(__name__)
@@ -55,7 +57,7 @@ def update_alert_plugins():
     return AlertPlugin.objects.all()
 
 
-def alert_duty_officer_missing_info(service_list, duty_officers):
+def alert_duty_officer_missing_info(service_list, duty_officers, fallback_officers):
     """
     Send a test alert of every relevant type to a duty_officer
     and email the fallback if any fail.
@@ -66,7 +68,16 @@ def alert_duty_officer_missing_info(service_list, duty_officers):
 
     for alert in set(alerts):
         try:
-            # TODO: is none ok
+            # TODO: definitely gonna have to do mocking for service
+            # TODO: emails doesn't even alert duty_officers, should we fork
             alert.send_alert(None, [], duty_officers)
         except Exception as e:
             # alert fallback officer
+            subject = 'Cabot Test Alert to Duty Officer Failed'
+            body = '{} alert to {} failed. Check whether his or her contact details are up to date in the profile page.'
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email='Cabot {}'.format(os.environ.get('CABOT_FROM_EMAIL')),
+                recipients=[user.email for user in duty_officers + fallback_officers]
+            )
