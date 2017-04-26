@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from elasticsearch import Elasticsearch
 from enum import Enum
 
@@ -9,7 +10,7 @@ class SupportedMetrics(Enum):
     METRICS_MULTIPLE = ['percentiles']
 
 
-def create_es_client(urls, timeout):
+def create_es_client(urls, timeout=60):
     """
     Create an elasticsearch-py client
     :param urls: comma-separated string of urls
@@ -32,23 +33,23 @@ def validate_query(query):
     while query.get('aggs'):
         query = query['aggs']
         if not query.get('agg'):
-            raise ValueError('Elasticsearch query format error: aggregations should be named "agg"')
+            raise ValidationError('Elasticsearch query format error: aggregations should be named "agg"')
 
         query = query['agg']
         if query.get('date_histogram'):
             # If we found a date_histogram the rest of the aggs should be metrics
             if not query.get('aggs'):
-                raise ValueError('Elasticsearch query format error: query must include a metric')
+                raise ValidationError('Elasticsearch query format error: query must include a metric')
 
             query = query['aggs']
             for metric in query:
                 if metric not in SupportedMetrics.METRICS_SINGLE.value + SupportedMetrics.METRICS_MULTIPLE.value:
-                    raise ValueError('Elasticsearch query format error: unsupported metric {}'.format(metric))
+                    raise ValidationError('Elasticsearch query format error: unsupported metric {}'.format(metric))
 
                 if not query[metric].get(metric):
-                    raise ValueError('Elasticsearch query format error: metric name must be the same '
+                    raise ValidationError('Elasticsearch query format error: metric name must be the same '
                                      'as the metric type')
             return
 
-    raise ValueError('Elasticsearch query format error: date_histogram must be the innermost'
+    raise ValidationError('Elasticsearch query format error: date_histogram must be the innermost'
                      'aggregation (besides metrics)')

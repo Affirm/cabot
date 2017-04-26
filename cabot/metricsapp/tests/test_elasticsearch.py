@@ -1,9 +1,10 @@
+import json
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from elasticsearch_dsl import Search
 from elasticsearch_dsl.response import Response
 from mock import patch
-import json
 from cabot.cabotapp.models import Service
 from cabot.metricsapp.api import validate_query
 from cabot.metricsapp.models import ElasticsearchSource, ElasticsearchStatusCheck
@@ -84,9 +85,10 @@ class TestElasticsearchStatusCheck(TestCase):
             warning_value=3.5,
             high_alert_importance='CRITICAL',
             high_alert_value=3.0,
-            queries='[{"query": {"query_string": {"query": "name:affirm.i.love.metrics"}}, '
-                    '"aggs": {"times": {"date_histogram": {"field": "@timestamp", "interval": "hour"}, '
-                    '"aggs": {"avg_timing": {"avg": {"field": "timing"}}}}}}]',
+            queries='[{"aggs": {"agg": {"terms": {"field": "a1"},'
+                    '"aggs": {"agg": {"terms": {"field": "b2"},'
+                    '"aggs": {"agg": {"date_histogram": {"field": "@timestamp","interval": "hour"},'
+                    '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}}}]',
             time_range=10000
         )
 
@@ -113,16 +115,10 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertIsNone(result.error)
 
     def test_invalid_query(self):
-        """Test that an invalid Elasticsearch query is returned as an error"""
+        """Test that an invalid Elasticsearch query is caught in save()"""
         self.es_check.queries = 'definitely not elasticsearch at all'
-
-        series = self.es_check.get_series()
-        self.assertTrue(series['error'])
-        self.assertEqual(series['error_code'], 'ValueError')
-
-        result = self.es_check._run()
-        self.assertFalse(result.succeeded)
-        self.assertEqual(result.error, 'Error fetching metric from source')
+        with self.assertRaises(ValidationError):
+            self.es_check.full_clean()
 
     @patch('cabot.metricsapp.models.elastic.Search.execute', empty_es_response)
     @patch('time.time', mock_time)
@@ -235,9 +231,9 @@ class TestQueryValidation(TestCase):
         """Aggregations must be named 'agg'"""
         query = '{"aggs": {"notagg": {"terms": {"field": "data"},' \
                 '"aggs": {"agg": {"date_histogram": {"field": "@timestamp","interval": "hour"},' \
-                '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}}}'
+                '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}'
 
-        with self.assertRaises(ValueError) as e:
+        with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
             self.assertEqual(e.exception, 'Elasticsearch query format error: aggregations should be named "agg"')
 
@@ -245,9 +241,9 @@ class TestQueryValidation(TestCase):
         """date_histogram must be the innermost aggregation"""
         query = '{"aggs": {"agg": {"date_histogram": {"field": "@timestamp","interval": "hour"},' \
                 '"aggs": {"agg": {"terms": {"field": "data"},' \
-                '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}}}'
+                '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}'
 
-        with self.assertRaises(ValueError) as e:
+        with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
             self.assertEqual(e.exception, 'Elasticsearch query format error: date_histogram must '
                                           'be the innermost aggregation (besides metrics)')
@@ -255,18 +251,18 @@ class TestQueryValidation(TestCase):
     def test_unsupported_metric(self):
         query = '{"aggs": {"agg": {"terms": {"field": "data"},' \
                 '"aggs": {"agg": {"date_histogram": {"field": "@timestamp","interval": "hour"},' \
-                '"aggs": {"raw_document": {"max": {"field": "timing"}}}}}}}}}}'
+                '"aggs": {"raw_document": {"max": {"field": "timing"}}}}}}}}'
 
-        with self.assertRaises(ValueError) as e:
+        with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
             self.assertEqual(e.exception, 'Elasticsearch query format error: unsupported metric raw_document')
 
     def test_nonmatching_metric_name(self):
         query = '{"aggs": {"agg": {"terms": {"field": "data"},' \
                 '"aggs": {"agg": {"date_histogram": {"field": "@timestamp","interval": "hour"},' \
-                '"aggs": {"min": {"max": {"field": "timing"}}}}}}}}}}'
+                '"aggs": {"min": {"max": {"field": "timing"}}}}}}}}'
 
-        with self.assertRaises(ValueError) as e:
+        with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
             self.assertEqual(e.exception, 'Elasticsearch query format error: metric name must '
                                           'be the same as the metric type')

@@ -15,11 +15,10 @@ class ElasticsearchSourceForm(ModelForm):
     def clean_urls(self):
         """Make sure the input urls are valid Elasticsearch hosts."""
         input_urls = self.cleaned_data['urls']
-        timeout = self.cleaned_data['timeout']
 
         # Create an Elasticsearch test client and see if a health check for the instance succeeds
         try:
-            client = create_es_client(input_urls, timeout)
+            client = create_es_client(input_urls)
             ClusterClient(client).health()
             return input_urls
         except ConnectionError:
@@ -48,20 +47,20 @@ class ElasticsearchStatusCheckForm(StatusCheckForm):
             self.fields['source'].queryset = ElasticsearchSource.objects.all()
             return ret
 
-    def clean_queries(self):
-        """
-        Make sure input queries are formatted correctly.
-        """
-        queries = self.cleaned_data['queries']
-        try:
-            query_list = json.loads(queries)
-        except ValueError:
-            raise ValidationError('Queries must be json-parsable')
-
-        for query in query_list:
-            try:
-                validate_query(query)
-            except ValueError as e:
-                raise ValidationError(e)
-
-        return queries
+    # def clean_queries(self):
+    #     """
+    #     Make sure input queries are formatted correctly.
+    #     """
+    #     queries = self.cleaned_data['queries']
+    #     try:
+    #         query_list = json.loads(queries)
+    #     except ValueError:
+    #         raise ValidationError('Queries must be json-parsable')
+    #
+    #     for query in query_list:
+    #         try:
+    #             validate_query(query)
+    #         except ValueError as e:
+    #             raise ValidationError(e)
+    #
+    #     return queries

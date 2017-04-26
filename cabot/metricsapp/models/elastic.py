@@ -1,9 +1,10 @@
-from django.db import models
-from elasticsearch_dsl import Search
 import json
 import logging
 import time
-from cabot.metricsapp.api import create_es_client, SupportedMetrics
+from django.db import models
+from django.core.exceptions import ValidationError
+from elasticsearch_dsl import Search
+from cabot.metricsapp.api import create_es_client, SupportedMetrics, validate_query
 from .base import MetricsSourceBase, MetricsStatusCheckBase
 
 
@@ -63,6 +64,17 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
                   'the same as the metric types (e.g., "max", "min", "avg").'
     )
 
+    def clean(self, *args, **kwargs):
+        """Validate the query on save"""
+        try:
+            queries = json.loads(self.queries)
+        except ValueError:
+            raise ValidationError('Queries are not json-parsable')
+
+        for query in queries:
+            validate_query(query)
+
+
     def get_series(self):
         """
         Get the relevant data for a check from Elasticsearch and parse it
@@ -89,16 +101,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         parsed_data['error'] = False
         parsed_data['data'] = []
 
-        try:
-            queries = json.loads(self.queries)
-        except ValueError as e:
-            logger.exception('Error loading Elasticsearch queries: {}'.format(self.queries))
-            parsed_data['error_code'] = type(e).__name__
-            parsed_data['error_message'] = str(e)
-            parsed_data['error'] = True
-            return parsed_data
-
-        for query in queries:
+        for query in json.loads(self.queries):
             source = ElasticsearchSource.objects.get(name=self.source.name)
             try:
                 search = Search().from_dict(query)
