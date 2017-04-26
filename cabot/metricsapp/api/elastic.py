@@ -1,14 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from elasticsearch import Elasticsearch
-from enum import Enum
-
-
-class SupportedMetrics(Enum):
-    # Response includes the field "value"
-    METRICS_SINGLE = ['min', 'max', 'avg', 'value_count', 'sum', 'cardinality', 'moving_avg', 'derivative']
-    # Response includes the field "values"
-    METRICS_MULTIPLE = ['percentiles']
+from cabot.metricsapp.defs import ES_METRICS_ALL, ES_VALIDATION_MSG_PREFIX
 
 
 def create_es_client(urls, timeout=settings.ELASTICSEARCH_TIMEOUT):
@@ -22,7 +15,7 @@ def create_es_client(urls, timeout=settings.ELASTICSEARCH_TIMEOUT):
     return Elasticsearch(urls, timeout=timeout)
 
 
-def validate_query(query):
+def validate_query(query, msg_prefix=ES_VALIDATION_MSG_PREFIX):
     """
     Validate that an Elasticsearch query is in the format we want
     (all aggregations named 'agg', 'date_histogram' most internal
@@ -31,26 +24,31 @@ def validate_query(query):
     :param query: the raw Elasticsearch query
     """
     # Loop through all the aggregations, stopping when we hit a date_histogram
-    while query.get('aggs'):
-        query = query['aggs']
-        if not query.get('agg'):
-            raise ValidationError('Elasticsearch query format error: aggregations should be named "agg"')
+    query = query.get('aggs')
+    if query is None:
+        raise ValidationError('{}: query must at least include a date_histogram aggregation.'.format(msg_prefix))
 
-        query = query['agg']
-        if query.get('date_histogram'):
-            # If we found a date_histogram the rest of the aggs should be metrics
-            if not query.get('aggs'):
-                raise ValidationError('Elasticsearch query format error: query must include a metric')
+    query = query.get('agg')
+    if query is None:
+        raise ValidationError('{}: aggregations should be named "agg."'.format(msg_prefix))
 
-            query = query['aggs']
-            for metric in query:
-                if metric not in SupportedMetrics.METRICS_SINGLE.value + SupportedMetrics.METRICS_MULTIPLE.value:
-                    raise ValidationError('Elasticsearch query format error: unsupported metric {}'.format(metric))
+    if 'date_histogram' not in query:
+        validate_query(query)
+        return
 
-                if not query[metric].get(metric):
-                    raise ValidationError('Elasticsearch query format error: metric name must be the same '
-                                     'as the metric type')
-            return
+    # date_histogram must be the innermost aggregation
+    if 'agg' in query:
+        raise ValidationError('{}: date_histogram must be the innermost aggregation (besides metrics).'
+                              .format(msg_prefix))
 
-    raise ValidationError('Elasticsearch query format error: date_histogram must be the innermost'
-                     'aggregation (besides metrics)')
+    # The rest of the aggs should be metrics
+    query = query.get('aggs')
+    if query is None:
+        raise ValidationError('{}: query must include a metric'.format(msg_prefix))
+
+    for metric, items in query.iteritems():
+        if metric not in ES_METRICS_ALL:
+            raise ValidationError('{}: unsupported metric "{}."'.format(msg_prefix, metric))
+
+        if metric not in items:
+            raise ValidationError('{}: metric name must be the same as the metric type.'.format(msg_prefix))

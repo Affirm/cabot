@@ -5,7 +5,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from elasticsearch_dsl import Search
-from cabot.metricsapp.api import create_es_client, SupportedMetrics, validate_query
+from cabot.metricsapp.api import create_es_client, validate_query
+from cabot.metricsapp.defs import ES_METRICS_SINGLE, ES_METRICS_MULTIPLE
 from .base import MetricsSourceBase, MetricsStatusCheckBase
 
 
@@ -135,9 +136,9 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
             return data
 
         # If there are no more aggregations, we've reached the metric
-        return self._es_base_case(series, series_name)
+        return self._parse_es_base_case(series, series_name)
 
-    def _es_base_case(self, series, series_name):
+    def _parse_es_base_case(self, series, series_name):
         """
         Extract the metric name and values from a json series
         :param series: subset of the ES response that includes a list of metric values with
@@ -153,12 +154,12 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
             if metric_name in ['key_as_string', 'key', 'doc_count']:
                 continue
 
-            elif metric_name in SupportedMetrics.METRICS_SINGLE.value:
+            elif metric_name in ES_METRICS_SINGLE:
                 # Convert ms to seconds and check if they're within the specified time range
                 name_to_series[metric_name] = [[bucket['key'] / 1000, bucket[metric_name]['value']]
                                                for bucket in series if bucket['key'] / 1000 > earliest_point]
 
-            elif metric_name in SupportedMetrics.METRICS_MULTIPLE.value:
+            elif metric_name in ES_METRICS_MULTIPLE:
                 # Create separate series for each percentile
                 for metric_subname in series[0][metric_name]['values']:
                     name_to_series[metric_subname] = []

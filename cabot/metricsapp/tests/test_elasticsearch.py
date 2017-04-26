@@ -7,6 +7,7 @@ from elasticsearch_dsl.response import Response
 from mock import patch
 from cabot.cabotapp.models import Service
 from cabot.metricsapp.api import validate_query
+from cabot.metricsapp.defs import ES_VALIDATION_MSG_PREFIX
 from cabot.metricsapp.models import ElasticsearchSource, ElasticsearchStatusCheck
 from cabot.metricsapp.tests.test_metrics_base import get_content
 
@@ -235,7 +236,7 @@ class TestQueryValidation(TestCase):
 
         with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, 'Elasticsearch query format error: aggregations should be named "agg"')
+            self.assertEqual(e.exception, '{}: aggregations should be named "agg."'.format(ES_VALIDATION_MSG_PREFIX))
 
     def test_external_date_hist(self):
         """date_histogram must be the innermost aggregation"""
@@ -245,8 +246,8 @@ class TestQueryValidation(TestCase):
 
         with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, 'Elasticsearch query format error: date_histogram must '
-                                          'be the innermost aggregation (besides metrics)')
+            self.assertEqual(e.exception, '{}: date_histogram must be the innermost aggregation (besides metrics).'
+                             .format(ES_VALIDATION_MSG_PREFIX))
 
     def test_unsupported_metric(self):
         query = '{"aggs": {"agg": {"terms": {"field": "data"},' \
@@ -255,7 +256,7 @@ class TestQueryValidation(TestCase):
 
         with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, 'Elasticsearch query format error: unsupported metric raw_document')
+            self.assertEqual(e.exception, '{}: unsupported metric "raw_document."'.format(ES_VALIDATION_MSG_PREFIX))
 
     def test_nonmatching_metric_name(self):
         query = '{"aggs": {"agg": {"terms": {"field": "data"},' \
@@ -264,5 +265,15 @@ class TestQueryValidation(TestCase):
 
         with self.assertRaises(ValidationError) as e:
             validate_query(json.loads(query))
-            self.assertEqual(e.exception, 'Elasticsearch query format error: metric name must '
-                                          'be the same as the metric type')
+            self.assertEqual(e.exception, '{}: metric name must be the same as the metric type.'
+                             .format(ES_VALIDATION_MSG_PREFIX))
+
+    def test_no_date_histogram(self):
+        query = '{"aggs": {"agg": {"terms": {"field": "no"},' \
+                '"aggs": {"agg": {"terms": {"field": "data"},' \
+                '"aggs": {"max": {"max": {"field": "timing"}}}}}}}}'
+
+        with self.assertRaises(ValidationError) as e:
+            validate_query(json.loads(query))
+            self.assertEqual(e.exception, '{}: query must at least include a date_histogram aggregation.'
+                             .format(ES_VALIDATION_MSG_PREFIX))
