@@ -65,6 +65,9 @@ def fake_es_percentile(*args):
 def fake_es_multiple_terms(*args):
     return [Response(Search(), response) for response in get_es('es_multiple_terms.json')]
 
+def fake_es_multiple_queries(*args):
+    return [Response(Search(), response) for response in get_es('es_response.json')] + \
+           [Response(Search(), response) for response in get_es('es_percentile.json')]
 
 def mock_time():
     return 1491577200.0
@@ -217,6 +220,33 @@ class TestElasticsearchStatusCheck(TestCase):
         data = data[0]
         self.assertEqual(str(data['series']), 'avg')
         self.assertEqual(data['datapoints'], [[1491573600, 4.4642857142857], [1491577200, 4.81336405529953]])
+
+    @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_queries)
+    @patch('time.time', mock_time)
+    def test_multiple_queries(self):
+        series = self.es_check.get_series()
+        self.assertFalse(series['error'])
+        self.assertEqual(series['raw'], get_es('es_response.json') + get_es('es_percentile.json'))
+
+        data = series['data']
+        # 1 from es_response, 3 from es_percentile
+        self.assertEqual(len(data), 4)
+
+        self.assertEqual(str(data[0]['series']), 'avg')
+        self.assertEqual(data[0]['datapoints'], [[1491552000, 4.9238095238095], [1491555600, 4.7958115183246],
+                                              [1491559200, 3.53005464480873], [1491562800, 4.04651162790697],
+                                              [1491566400, 4.8390501319261], [1491570000, 4.51913477537437],
+                                              [1491573600, 4.4642857142857], [1491577200, 4.81336405529953]])
+        self.assertEqual(str(data[1]['series']), '25.0')
+        self.assertEqual(data[1]['datapoints'], [[1491566400, 294.75], [1491570000, 377.125],
+                                                 [1491573600, 403.0], [1491577200, 703.6666666666666]])
+        self.assertEqual(str(data[2]['series']), '50.0')
+        self.assertEqual(data[2]['datapoints'], [[1491566400, 1120.0], [1491570000, 1124.0],
+                                                 [1491573600, 1138.3333333333333],
+                                                 [1491577200, 1114.3999999999999]])
+        self.assertEqual(str(data[3]['series']), '75.0')
+        self.assertEqual(data[3]['datapoints'], [[1491566400, 1350.0], [1491570000, 1299.0833333333333],
+                                                 [1491573600, 1321.875], [1491577200, 1293.7333333333333]])
 
 
 class TestQueryValidation(TestCase):

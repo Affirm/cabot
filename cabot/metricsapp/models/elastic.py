@@ -101,6 +101,8 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         parsed_data = dict(raw=[], error=False, data=[])
         source = ElasticsearchSource.objects.get(name=self.source.name)
         multisearch = MultiSearch()
+        if settings.ELASTICSEARCH_MAX_CONCURRENT_SEARCHES:
+            multisearch.params(max_concurrent_searches=settings.ELASTICSEARCH_MAX_CONCURRENT_SEARCHES)
 
         for query in json.loads(self.queries):
             multisearch = multisearch.add(Search.from_dict(query))
