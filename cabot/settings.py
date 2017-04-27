@@ -321,7 +321,7 @@ SERVICE_IMAGE = os.environ.get('SERVICE_IMAGE', None)
 
 # Metricsapp settings
 # Timeout for Elasticsearch queries
-ELASTICSEARCH_TIMEOUT = os.environ.get('ELASTICSEARCH_TIMEOUT', 20)
+ELASTICSEARCH_TIMEOUT = os.environ.get('ELASTICSEARCH_TIMEOUT', 30)
 # msearch max_concurrent_searches
 ELASTICSEARCH_MAX_CONCURRENT_SEARCHES = os.environ.get('ELASTICSEARCH_MAX_CONCURRENT_SEARCHES', None)
 

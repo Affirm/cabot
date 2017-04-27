@@ -40,6 +40,11 @@ class ElasticsearchSource(MetricsSourceBase):
         default=settings.ELASTICSEARCH_TIMEOUT,
         help_text='Timeout for queries to this index.'
     )
+    max_concurrent_searches = models.IntegerField(
+        default=settings.ELASTICSEARCH_MAX_CONCURRENT_SEARCHES,
+        null=True,
+        help_text='Maximum concurrent searches the multi search api can run.'
+    )
 
     _client = None
 
@@ -101,8 +106,9 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         parsed_data = dict(raw=[], error=False, data=[])
         source = ElasticsearchSource.objects.get(name=self.source.name)
         multisearch = MultiSearch()
-        if settings.ELASTICSEARCH_MAX_CONCURRENT_SEARCHES:
-            multisearch.params(max_concurrent_searches=settings.ELASTICSEARCH_MAX_CONCURRENT_SEARCHES)
+        
+        if source.max_concurrent_searches is not None:
+            multisearch.params(max_concurrent_searches=source.max_concurrent_searches)
 
         for query in json.loads(self.queries):
             multisearch = multisearch.add(Search.from_dict(query))
