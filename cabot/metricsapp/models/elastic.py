@@ -4,7 +4,7 @@ import time
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from elasticsearch_dsl import Search
+from elasticsearch_dsl import MultiSearch, Search
 from cabot.metricsapp.api import create_es_client, validate_query
 from cabot.metricsapp.defs import ES_METRICS_SINGLE, ES_METRICS_MULTIPLE
 from .base import MetricsSourceBase, MetricsStatusCheckBase
@@ -98,22 +98,25 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
                 check:
         """
         # Error will be set to true if we encounter an error
-        parsed_data = dict(raw=None, error=False, data=[])
+        parsed_data = dict(raw=[], error=False, data=[])
         source = ElasticsearchSource.objects.get(name=self.source.name)
+        multisearch = MultiSearch()
 
         for query in json.loads(self.queries):
-            try:
-                search = Search().from_dict(query)
-                response = search.using(source.client).index(source.index).execute()
+            multisearch = multisearch.add(Search.from_dict(query))
+
+        try:
+            responses = multisearch.using(source.client).index(source.index).execute()
+            for response in responses:
                 raw_data = response.to_dict()
-                parsed_data['raw'] = raw_data
+                parsed_data['raw'].append(raw_data)
                 parsed_data['data'].extend(self._parse_es_response([raw_data['aggregations']]))
-            except Exception as e:
-                logger.exception('Error executing Elasticsearch query: {}'.format(query))
-                parsed_data['error_code'] = type(e).__name__
-                parsed_data['error_message'] = str(e)
-                parsed_data['error'] = True
-                break
+
+        except Exception as e:
+            logger.exception('Error executing Elasticsearch query: {}'.format(query))
+            parsed_data['error_code'] = type(e).__name__
+            parsed_data['error_message'] = str(e)
+            parsed_data['error'] = True
 
         return parsed_data
 
