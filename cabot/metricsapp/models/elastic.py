@@ -75,7 +75,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
     )
 
     def clean(self, *args, **kwargs):
-        """Validate the query on save"""
+        """Validate the query"""
         try:
             queries = json.loads(self.queries)
         except ValueError:
@@ -83,7 +83,6 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
 
         for query in queries:
             validate_query(query)
-
 
     def get_series(self):
         """
@@ -146,7 +145,9 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
                 data[metric].append([timestamp, value])
 
         for series, datapoints in data.iteritems():
-            output.append(dict(series=series, datapoints=datapoints))
+            # The last bucket may not have complete data, so we'll ignore it
+            datapoints = sorted(datapoints, key=lambda x: x[0])
+            output.append(dict(series=series, datapoints=datapoints[:-1]))
 
         return output
 

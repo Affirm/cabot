@@ -65,9 +65,11 @@ def fake_es_percentile(*args):
 def fake_es_multiple_terms(*args):
     return [Response(Search(), response) for response in get_es('es_multiple_terms.json')]
 
+
 def fake_es_multiple_queries(*args):
     return [Response(Search(), response) for response in get_es('es_response.json')] + \
            [Response(Search(), response) for response in get_es('es_percentile.json')]
+
 
 def mock_time():
     return 1491577200.0
@@ -111,7 +113,7 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(data['datapoints'], [[1491552000, 4.9238095238095], [1491555600, 4.7958115183246],
                                               [1491559200, 3.53005464480873], [1491562800, 4.04651162790697],
                                               [1491566400, 4.8390501319261], [1491570000, 4.51913477537437],
-                                              [1491573600, 4.4642857142857], [1491577200, 4.81336405529953]])
+                                              [1491573600, 4.4642857142857]])
 
         # Test check result
         result = self.es_check._run()
@@ -153,16 +155,16 @@ class TestElasticsearchStatusCheck(TestCase):
 
         self.assertEqual(str(data[0]['series']), 'gold.max')
         self.assertEqual(data[0]['datapoints'], [[1491566400, 12.220], [1491570000, 14.490],
-                                                 [1491573600, 14.400], [1491577200, 17.460]])
+                                                 [1491573600, 14.400]])
         self.assertEqual(str(data[1]['series']), 'gold.min')
         self.assertEqual(data[1]['datapoints'], [[1491566400, 12.221], [1491570000, 14.491],
-                                                 [1491573600, 14.401], [1491577200, 17.461]])
+                                                 [1491573600, 14.401]])
         self.assertEqual(str(data[2]['series']), 'maroon.max')
         self.assertEqual(data[2]['datapoints'], [[1491566400, 17.602], [1491570000, 15.953],
-                                                 [1491573600, 18.296], [1491577200, 14.242]])
+                                                 [1491573600, 18.296]])
         self.assertEqual(str(data[3]['series']), 'maroon.min')
         self.assertEqual(data[3]['datapoints'], [[1491566400, 17.603], [1491570000, 15.954],
-                                                 [1491573600, 17.297], [1491577200, 14.243]])
+                                                 [1491573600, 17.297]])
 
         # Test check result
         result = self.es_check._run()
@@ -185,14 +187,13 @@ class TestElasticsearchStatusCheck(TestCase):
 
         self.assertEqual(str(data[0]['series']), '25.0')
         self.assertEqual(data[0]['datapoints'], [[1491566400, 294.75], [1491570000, 377.125],
-                                                 [1491573600, 403.0], [1491577200, 703.6666666666666]])
+                                                 [1491573600, 403.0]])
         self.assertEqual(str(data[1]['series']), '50.0')
         self.assertEqual(data[1]['datapoints'], [[1491566400, 1120.0], [1491570000, 1124.0],
-                                                 [1491573600, 1138.3333333333333],
-                                                 [1491577200, 1114.3999999999999]])
+                                                 [1491573600, 1138.3333333333333]])
         self.assertEqual(str(data[2]['series']), '75.0')
         self.assertEqual(data[2]['datapoints'], [[1491566400, 1350.0], [1491570000, 1299.0833333333333],
-                                                 [1491573600, 1321.875], [1491577200, 1293.7333333333333]])
+                                                 [1491573600, 1321.875]])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_terms)
     @patch('time.time', mock_time)
@@ -208,11 +209,11 @@ class TestElasticsearchStatusCheck(TestCase):
         data = sorted(data, key=lambda d: d['series'])
 
         self.assertEqual(str(data[0]['series']), 'north.east.min')
-        self.assertEqual(data[0]['datapoints'], [[1491566400, 19.0], [1491570000, 13.0]])
+        self.assertEqual(data[0]['datapoints'], [[1491566400, 19.0]])
         self.assertEqual(str(data[1]['series']), 'north.west.min')
-        self.assertEqual(data[1]['datapoints'], [[1491566400, 15.0], [1491570000, 15.0]])
+        self.assertEqual(data[1]['datapoints'], [[1491566400, 15.0]])
         self.assertEqual(str(data[2]['series']), 'south.west.min')
-        self.assertEqual(data[2]['datapoints'], [[1491566400, 16.0], [1491570000, 15.0]])
+        self.assertEqual(data[2]['datapoints'], [[1491566400, 16.0]])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_response)
     @patch('time.time', mock_time)
@@ -228,7 +229,7 @@ class TestElasticsearchStatusCheck(TestCase):
 
         data = data[0]
         self.assertEqual(str(data['series']), 'avg')
-        self.assertEqual(data['datapoints'], [[1491573600, 4.4642857142857], [1491577200, 4.81336405529953]])
+        self.assertEqual(data['datapoints'], [[1491573600, 4.4642857142857]])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_queries)
     @patch('time.time', mock_time)
@@ -244,22 +245,20 @@ class TestElasticsearchStatusCheck(TestCase):
         # Sort to make sure the order is always the same
         data = sorted(data, key=lambda d: d['series'])
 
-
         self.assertEqual(str(data[0]['series']), '25.0')
         self.assertEqual(data[0]['datapoints'], [[1491566400, 294.75], [1491570000, 377.125],
-                                                 [1491573600, 403.0], [1491577200, 703.6666666666666]])
+                                                 [1491573600, 403.0]])
         self.assertEqual(str(data[1]['series']), '50.0')
         self.assertEqual(data[1]['datapoints'], [[1491566400, 1120.0], [1491570000, 1124.0],
-                                                 [1491573600, 1138.3333333333333],
-                                                 [1491577200, 1114.3999999999999]])
+                                                 [1491573600, 1138.3333333333333]])
         self.assertEqual(str(data[2]['series']), '75.0')
         self.assertEqual(data[2]['datapoints'], [[1491566400, 1350.0], [1491570000, 1299.0833333333333],
-                                                 [1491573600, 1321.875], [1491577200, 1293.7333333333333]])
+                                                 [1491573600, 1321.875]])
         self.assertEqual(str(data[3]['series']), 'avg')
         self.assertEqual(data[3]['datapoints'], [[1491552000, 4.9238095238095], [1491555600, 4.7958115183246],
                                                  [1491559200, 3.53005464480873], [1491562800, 4.04651162790697],
                                                  [1491566400, 4.8390501319261], [1491570000, 4.51913477537437],
-                                                 [1491573600, 4.4642857142857], [1491577200, 4.81336405529953]])
+                                                 [1491573600, 4.4642857142857]])
 
 
 class TestQueryValidation(TestCase):

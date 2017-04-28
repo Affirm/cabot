@@ -2,8 +2,7 @@ from django.core.exceptions import ValidationError
 from django.forms import ModelForm
 from elasticsearch.client import ClusterClient
 from elasticsearch.exceptions import ConnectionError
-import json
-from cabot.metricsapp.api import create_es_client, validate_query
+from cabot.metricsapp.api import create_es_client
 from cabot.metricsapp.models import ElasticsearchSource, ElasticsearchStatusCheck
 from cabot.cabotapp.views import StatusCheckForm
 
@@ -46,21 +45,3 @@ class ElasticsearchStatusCheckForm(StatusCheckForm):
             ret = super(ElasticsearchStatusCheckForm, self).__init__(*args, **kwargs)
             self.fields['source'].queryset = ElasticsearchSource.objects.all()
             return ret
-
-    # def clean_queries(self):
-    #     """
-    #     Make sure input queries are formatted correctly.
-    #     """
-    #     queries = self.cleaned_data['queries']
-    #     try:
-    #         query_list = json.loads(queries)
-    #     except ValueError:
-    #         raise ValidationError('Queries must be json-parsable')
-    #
-    #     for query in query_list:
-    #         try:
-    #             validate_query(query)
-    #         except ValueError as e:
-    #             raise ValidationError(e)
-    #
-    #     return queries
