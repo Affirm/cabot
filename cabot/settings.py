@@ -325,6 +325,9 @@ ELASTICSEARCH_TIMEOUT = os.environ.get('ELASTICSEARCH_TIMEOUT', 30)
 # msearch max_concurrent_searches
 ELASTICSEARCH_MAX_CONCURRENT_SEARCHES = os.environ.get('ELASTICSEARCH_MAX_CONCURRENT_SEARCHES', None)
 
+FIXTURE_DIRS = (
+  '{}/metricsapp/tests/fixtures'.format(settings_dir),
+)
 # xml output for tests
 TEST_RUNNER = 'xmlrunner.extra.djangotestrunner.XMLTestRunner'
 TEST_OUTPUT_DIR = os.environ.get('TEST_OUTPUT_DIR', '.')

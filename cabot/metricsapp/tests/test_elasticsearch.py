@@ -76,13 +76,14 @@ def mock_time():
 
 
 class TestElasticsearchStatusCheck(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user('user')
-        self.es_source = ElasticsearchSource.objects.create(
-            name='es',
-            urls='localhost',
-            index='test-index-pls-ignore'
-        )
+    fixtures = ['elastic/es_fixtures.yaml']
+    # def setUp(self):
+    #     self.user = User.objects.create_user('user')
+    #     self.es_source = ElasticsearchSource.objects.create(
+    #         name='es',
+    #         urls='localhost',
+    #         index='test-index-pls-ignore'
+    #     )
         self.es_check = ElasticsearchStatusCheck.objects.create(
             name='checkycheck',
             created_by=self.user,
@@ -101,8 +102,9 @@ class TestElasticsearchStatusCheck(TestCase):
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_response)
     @patch('time.time', mock_time)
     def test_query(self):
+        es_check = ElasticsearchStatusCheck.objects.get(id=20)
         # Test output series
-        series = self.es_check.get_series()
+        series = es_check.get_series()
         self.assertFalse(series['error'])
         self.assertEqual(series['raw'], get_es('es_response.json'))
         data = series['data']
@@ -116,7 +118,7 @@ class TestElasticsearchStatusCheck(TestCase):
                                               [1491573600, 4.4642857142857]])
 
         # Test check result
-        result = self.es_check._run()
+        result = es_check._run()
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
 
@@ -129,8 +131,9 @@ class TestElasticsearchStatusCheck(TestCase):
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', empty_es_response)
     @patch('time.time', mock_time)
     def test_empty_response(self):
+        es_check = ElasticsearchStatusCheck.objects.get(id=20)
         """Test result when elasticsearch returns an empty response"""
-        series = self.es_check.get_series()
+        series = es_check.get_series()
         self.assertTrue(series['error'])
 
         result = self.es_check._run()
@@ -140,9 +143,10 @@ class TestElasticsearchStatusCheck(TestCase):
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_metrics_terms)
     @patch('time.time', mock_time)
     def test_terms_aggregation(self):
-        self.es_check.check_type = '<'
-        self.es_check.warning_value = 15
-        self.es_check.high_alert_value = 18
+        es_check = ElasticsearchStatusCheck.objects.get(id=20)
+        es_check.check_type = '<'
+        es_check.warning_value = 15
+        es_check.high_alert_value = 18
         series = self.es_check.get_series()
         self.assertFalse(series['error'])
         self.assertEqual(series['raw'], get_es('es_multiple_metrics_terms.json'))
@@ -167,7 +171,7 @@ class TestElasticsearchStatusCheck(TestCase):
                                                  [1491573600, 17.297]])
 
         # Test check result
-        result = self.es_check._run()
+        result = es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEquals(result.error, 'maroon.max: 18.3 < 18.0')
         self.assertEqual(self.es_check.importance, Service.CRITICAL_STATUS)
@@ -175,7 +179,8 @@ class TestElasticsearchStatusCheck(TestCase):
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_percentile)
     @patch('time.time', mock_time)
     def test_percentile(self):
-        series = self.es_check.get_series()
+        es_check = ElasticsearchStatusCheck.objects.get(id=20)
+        series = es_check.get_series()
         self.assertFalse(series['error'])
         self.assertEqual(series['raw'], get_es('es_percentile.json'))
 
@@ -198,7 +203,8 @@ class TestElasticsearchStatusCheck(TestCase):
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_terms)
     @patch('time.time', mock_time)
     def test_multiple_terms(self):
-        series = self.es_check.get_series()
+        es_check = ElasticsearchStatusCheck.objects.get(id=20)
+        series = es_check.get_series()
         self.assertFalse(series['error'])
         self.assertEqual(series['raw'], get_es('es_multiple_terms.json'))
 
@@ -219,7 +225,8 @@ class TestElasticsearchStatusCheck(TestCase):
     @patch('time.time', mock_time)
     def test_time_range(self):
         """Should not return data earlier than now - the time range"""
-        self.es_check.time_range = 90
+        es_check = ElasticsearchStatusCheck.objects.get(id=20)
+        es_check.time_range = 90
 
         series = self.es_check.get_series()
         self.assertFalse(series['error'])
@@ -234,7 +241,13 @@ class TestElasticsearchStatusCheck(TestCase):
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_queries)
     @patch('time.time', mock_time)
     def test_multiple_queries(self):
-        series = self.es_check.get_series()
+        es_check = ElasticsearchStatusCheck.objects.get()
+        self.assertEqual(es_check.id, 'elaien')
+        test = []
+        for item in es_check:
+            test.append(item.id)
+        es_check = ElasticsearchStatusCheck.objects.get(id=20)
+        series = es_check.get_series()
         self.assertFalse(series['error'])
         self.assertEqual(series['raw'], get_es('es_response.json') + get_es('es_percentile.json'))
 
