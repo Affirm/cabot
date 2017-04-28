@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from elasticsearch_dsl import MultiSearch, Search
 from cabot.metricsapp.api import create_es_client, validate_query
-from cabot.metricsapp.defs import ES_METRICS_SINGLE, ES_METRICS_MULTIPLE
+from collections import defaultdict
 from .base import MetricsSourceBase, MetricsStatusCheckBase
 
 
@@ -106,7 +106,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         parsed_data = dict(raw=[], error=False, data=[])
         source = ElasticsearchSource.objects.get(name=self.source.name)
         multisearch = MultiSearch()
-        
+
         if source.max_concurrent_searches is not None:
             multisearch.params(max_concurrent_searches=source.max_concurrent_searches)
 
@@ -128,66 +128,71 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
 
         return parsed_data
 
-    def _parse_es_response(self, series, series_name=None):
+    def _parse_es_response(self, series):
         """
-        Look through the json response recursively to go through all the aggregation buckets
-        :param series: the aggregations part of the ES response
-        :param series_name: the name of the series we're looking at ("key1.key2....metric_name")
+        Parse the Elasticsearch json response and create an output list containing only
+        points within the time range for this check.
+        :param series: 'aggregations' part of the response from Elasticsearch
+        :return: list in the format [{series: [timestamp, value]}]
         """
-        if len(series) == 0:
-            return []
-
-        # All aggregations should be named 'agg' (validated in validate_query())
-        if series[0].get('agg') is not None:
-            data = []
-            for subseries in series:
-                # New name is "series_name.subseries_name" (if they exist)
-                subseries_name = '.'.join(filter(None, [series_name, subseries.get('key')]))
-                data += self._parse_es_response(subseries['agg']['buckets'], subseries_name)
-            return data
-
-        # If there are no more aggregations, we've reached the metric
-        return self._parse_es_base_case(series, series_name)
-
-    def _parse_es_base_case(self, series, series_name):
-        """
-        Extract the metric name and values from a json series
-        :param series: subset of the ES response that includes a list of metric values with
-                       date histogram keys
-        :param series_name: the name of the series we're looking at
-        :return: list of series and datapoints in the format
-                 {'series': series_name, 'datapoints': [[timestamp, value], [timestamp, value], ...]
-        """
-        name_to_series = {}
         earliest_point = time.time() - self.time_range * 60
-        for metric_name in series[0]:
-            # Not actually a metric name--other fields
-            if metric_name in ['key_as_string', 'key', 'doc_count']:
+        output = []
+        data = defaultdict(list)
+        for metric, (timestamp, value) in self._parse_series(series):
+            if timestamp > earliest_point:
+                data[metric].append([timestamp, value])
+
+        for series, datapoints in data.iteritems():
+            output.append(dict(series=series, datapoints=datapoints))
+
+        return output
+
+    def _parse_series(self, series, series_name=None):
+        """
+        Parse the Elasticsearch json response and generate data for each datapoint
+        :param series: the 'aggregations' part of the response from Elasticsearch
+        :param series_name: the name for the series ('key1.key2. ... .metric')
+        :return: (series, (timestamp, datapoint)) pairs
+        """
+        for subseries in series:
+            # If there are no more aggregations, we've reached the metric
+            if subseries.get('agg') is None:
+                results = self._get_metric_data(subseries, series_name)
+
+            else:
+                # New name is "series_name.subseries_name" (if they exist)
+                key = subseries.get('key')
+                subseries_name = '.'.join(filter(None, [series_name, key]))
+                results = self._parse_series(subseries['agg']['buckets'], series_name=subseries_name)
+
+            for result in results:
+                yield result
+
+    def _get_metric_data(self, subseries, series_name):
+        """
+        Given the part of the ES response grouped by timestamp, generate
+        (series, (timestamp, value)) pairs for each metric
+        :param subseries: subset of the Elasticsearch response dealing with metric info
+        :param series_name: "agg1.agg2..."
+        :return: (series, (timestamp, value)) pairs for each metric in the response
+        """
+        timestamp = subseries['key'] / 1000
+
+        for metric, value_dict in subseries.iteritems():
+            # Not actually the metric field--timestamp, doc_count, etc.
+            if type(value_dict) != dict:
                 continue
 
-            elif metric_name in ES_METRICS_SINGLE:
-                # Convert ms to seconds and check if they're within the specified time range
-                name_to_series[metric_name] = [[bucket['key'] / 1000, bucket[metric_name]['value']]
-                                               for bucket in series if bucket['key'] / 1000 > earliest_point]
+            if 'value' in value_dict:
+                # Series_name might be none if there are no aggs
+                metric_name = '.'.join(filter(None, [series_name, metric]))
+                yield (metric_name, (timestamp, value_dict['value']))
 
-            elif metric_name in ES_METRICS_MULTIPLE:
-                # Create separate series for each percentile
-                for metric_subname in series[0][metric_name]['values']:
-                    name_to_series[metric_subname] = []
-                for bucket in series:
-                    timestamp = bucket['key'] / 1000
-                    if timestamp > earliest_point:
-                        for metric_subname in bucket[metric_name]['values']:
-                            name_to_series[metric_subname].append([timestamp,
-                                                                   bucket[metric_name]['values'][metric_subname]])
+            elif 'values' in value_dict:
+                for submetric_name, value in value_dict['values'].iteritems():
+                    metric_name = '.'.join(filter(None, [series_name, submetric_name]))
+                    yield (metric_name, (timestamp, value))
 
-            # Unsupported metrics that are supported in Grafana: raw_document (non-numeric) and extended_stats
-            # (many return values, which doesn't make sense for a single check, and repeats other metrics).
             else:
-                raise NotImplementedError('Elasticsearch metric type not supported: {}'.format(metric_name))
+                raise NotImplementedError('Unsupported metric: {}.'.format(metric))
 
-        data = []
-        for metric in name_to_series:
-            metric_series_name = '.'.join(filter(None, [series_name, metric]))
-            data.append({'series': metric_series_name, 'datapoints': name_to_series[metric]})
-        return data

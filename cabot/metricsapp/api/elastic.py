@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from elasticsearch import Elasticsearch
-from cabot.metricsapp.defs import ES_METRICS_ALL, ES_VALIDATION_MSG_PREFIX
+from cabot.metricsapp.defs import ES_METRICS, ES_VALIDATION_MSG_PREFIX
 
 
 def create_es_client(urls, timeout=settings.ELASTICSEARCH_TIMEOUT):
@@ -47,7 +47,7 @@ def validate_query(query, msg_prefix=ES_VALIDATION_MSG_PREFIX):
         raise ValidationError('{}: query must include a metric'.format(msg_prefix))
 
     for metric, items in query.iteritems():
-        if metric not in ES_METRICS_ALL:
+        if metric not in ES_METRICS:
             raise ValidationError('{}: unsupported metric "{}."'.format(msg_prefix, metric))
 
         if metric not in items:
