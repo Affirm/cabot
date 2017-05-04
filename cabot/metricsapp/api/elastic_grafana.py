@@ -8,7 +8,7 @@ from cabot.metricsapp.defs import ES_SUPPORTED_METRICS
 logger = logging.getLogger(__name__)
 
 
-def build_query(series, min_time, default_interval):
+def build_query(series, min_time='now-10m', default_interval='1m'):
     """
     Given series information from the Grafana API, build an Elasticsearch query
     :param series: a "target" in the Grafana dashboard API response
@@ -125,7 +125,7 @@ def get_date_histogram_settings(agg, default_interval):
     if interval == 'auto':
         interval = default_interval
 
-    return dict(field=agg['field'], interval=agg['settings']['interval'])
+    return dict(field=agg['field'], interval=interval)
 
 
 def template_response(grafana_api_data, templating_info):
@@ -172,6 +172,10 @@ def create_templating_dict(templating_info):
         # Multi-valued templates are surrounded by parentheses and combined with OR
         elif isinstance(template_value, list):
             templates[template_name] = '({})'.format(' OR '.join(template_value))
+
+        # Interval can also be automatically set
+        elif template_value == '$__auto_interval':
+            templates[template_name] = 'auto'
 
         else:
             templates[template_name] = template_value
