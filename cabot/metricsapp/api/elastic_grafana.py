@@ -8,7 +8,7 @@ from cabot.metricsapp.defs import ES_SUPPORTED_METRICS
 logger = logging.getLogger(__name__)
 
 
-def build_query(series, min_time, panel_interval):
+def build_query(series, min_time, default_interval):
     """
     Given series information from the Grafana API, build an Elasticsearch query
     :param series: a "target" in the Grafana dashboard API response
@@ -17,11 +17,11 @@ def build_query(series, min_time, panel_interval):
     """
     search = Search().query('query_string', query=series['query'], analyze_wildcard=True) \
         .query(Range(** {series['timeField']: {'gte': min_time}}))
-    search.aggs.bucket('agg', get_aggs(series, panel_interval))
+    search.aggs.bucket('agg', get_aggs(series, default_interval))
     return search.to_dict()
 
 
-def get_aggs(series, panel_interval):
+def get_aggs(series, default_interval):
     """
     Get the ES aggregations from the input Grafana API series info
     :param series: a "target" in the Grafana dashboard API response
@@ -62,7 +62,7 @@ def get_aggs(series, panel_interval):
     if not date_histogram:
         raise ValidationError('Dashboard must include a date histogram aggregation.')
 
-    settings = get_date_histogram_settings(date_histogram, panel_interval)
+    settings = get_date_histogram_settings(date_histogram, default_interval)
     if aggs is None:
         aggs = A({'date_histogram': settings})
         aggs_chain = aggs
@@ -115,7 +115,7 @@ def get_terms_settings(agg):
     return terms_settings
 
 
-def get_date_histogram_settings(agg, panel_interval):
+def get_date_histogram_settings(agg, default_interval):
     """
     Get the settings for a date_histogram aggregation.
     :param agg: the date_histogram aggregation json data
@@ -123,7 +123,7 @@ def get_date_histogram_settings(agg, panel_interval):
     """
     interval = agg['settings']['interval']
     if interval == 'auto':
-        interval = panel_interval
+        interval = default_interval
 
     return dict(field=agg['field'], interval=agg['settings']['interval'])
 
