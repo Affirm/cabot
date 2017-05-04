@@ -62,7 +62,7 @@ def get_aggs(series, panel_interval):
     if not date_histogram:
         raise ValidationError('Dashboard must include a date histogram aggregation.')
 
-    settings = get_date_histogram_settings(date_histogram)
+    settings = get_date_histogram_settings(date_histogram, panel_interval)
     if aggs is None:
         aggs = A({'date_histogram': settings})
         aggs_chain = aggs
