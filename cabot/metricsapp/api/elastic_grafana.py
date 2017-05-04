@@ -8,7 +8,7 @@ from cabot.metricsapp.defs import ES_SUPPORTED_METRICS
 logger = logging.getLogger(__name__)
 
 
-def build_query(series, min_time):
+def build_query(series, min_time, panel_interval):
     """
     Given series information from the Grafana API, build an Elasticsearch query
     :param series: a "target" in the Grafana dashboard API response
@@ -17,11 +17,11 @@ def build_query(series, min_time):
     """
     search = Search().query('query_string', query=series['query'], analyze_wildcard=True) \
         .query(Range(** {series['timeField']: {'gte': min_time}}))
-    search.aggs.bucket('agg', get_aggs(series))
+    search.aggs.bucket('agg', get_aggs(series, panel_interval))
     return search.to_dict()
 
 
-def get_aggs(series):
+def get_aggs(series, panel_interval):
     """
     Get the ES aggregations from the input Grafana API series info
     :param series: a "target" in the Grafana dashboard API response
@@ -115,12 +115,16 @@ def get_terms_settings(agg):
     return terms_settings
 
 
-def get_date_histogram_settings(agg):
+def get_date_histogram_settings(agg, panel_interval):
     """
     Get the settings for a date_histogram aggregation.
     :param agg: the date_histogram aggregation json data
     :return: dict of {setting_name: setting_value}
     """
+    interval = agg['settings']['interval']
+    if interval == 'auto':
+        interval = panel_interval
+
     return dict(field=agg['field'], interval=agg['settings']['interval'])
 
 
