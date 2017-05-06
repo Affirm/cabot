@@ -18,11 +18,11 @@ def build_query(series, min_time='now-10m', default_interval='1m'):
     """
     search = Search().query('query_string', query=series['query'], analyze_wildcard=True) \
         .query(Range(** {series['timeField']: {'gte': min_time}}))
-    search.aggs.bucket('agg', get_aggs(series, default_interval))
+    search.aggs.bucket('agg', get_aggs(series, min_time, default_interval))
     return search.to_dict()
 
 
-def get_aggs(series, default_interval):
+def get_aggs(series, min_time, default_interval):
     """
     Get the ES aggregations from the input Grafana API series info
     :param series: a "target" in the Grafana dashboard API response
@@ -63,7 +63,7 @@ def get_aggs(series, default_interval):
     if not date_histogram:
         raise ValidationError('Dashboard must include a date histogram aggregation.')
 
-    settings = get_date_histogram_settings(date_histogram, default_interval)
+    settings = get_date_histogram_settings(date_histogram, min_time, default_interval)
     if aggs is None:
         aggs = A({'date_histogram': settings})
         aggs_chain = aggs
@@ -116,7 +116,7 @@ def get_terms_settings(agg):
     return terms_settings
 
 
-def get_date_histogram_settings(agg, default_interval):
+def get_date_histogram_settings(agg, min_time, default_interval):
     """
     Get the settings for a date_histogram aggregation.
     :param agg: the date_histogram aggregation json data
@@ -126,7 +126,7 @@ def get_date_histogram_settings(agg, default_interval):
     if interval == 'auto':
         interval = default_interval
 
-    return dict(field=agg['field'], interval=interval)
+    return dict(field=agg['field'], interval=interval, extended_bounds={'min': min_time, 'max': 'now'})
 
 
 def template_response(data, templating_dict):

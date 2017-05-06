@@ -22,7 +22,11 @@
     "agg": {
       "date_histogram": {
         "field": "@timestamp",
-        "interval": "2m"
+        "interval": "2m",
+        "extended_bounds": {
+          "min": "now-10m",
+          "max": "now"
+        }
       },
       "aggs": {
         "sum": {

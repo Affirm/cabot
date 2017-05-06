@@ -41,7 +41,11 @@
             "agg": {
               "date_histogram": {
                 "field": "@timestamp",
-                "interval": "20m"
+                "interval": "20m",
+                "extended_bounds": {
+                  "min": "now-100m",
+                  "max": "now"
+                }
               },
               "aggs": {
                 "avg": {
