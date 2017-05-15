@@ -22,6 +22,13 @@ class GrafanaElasticsearchStatusCheckForm(GrafanaStatusCheckForm):
         ]
 
     def __init__(self, *args, **kwargs):
+        # Update view
+        if kwargs.get('es_fields') is None:
+            super(GrafanaElasticsearchStatusCheckForm, self).__init__(*args, **kwargs)
+            self.fields['queries'].widget = forms.HiddenInput()
+            self.fields['queries'].help_text = None
+            return
+
         es_fields = kwargs.pop('es_fields')
         super(GrafanaElasticsearchStatusCheckForm, self).__init__(*args, **kwargs)
 

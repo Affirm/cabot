@@ -1,10 +1,11 @@
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
-from django.views.generic import View
+from django.views.generic import View, UpdateView
 from cabot.cabotapp.views import LoginRequiredMixin
 from cabot.metricsapp.api import get_es_status_check_fields, get_status_check_fields
 from cabot.metricsapp.forms import GrafanaElasticsearchStatusCheckForm
+from cabot.metricsapp.models import ElasticsearchStatusCheck
 
 
 class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, View):
@@ -43,3 +44,12 @@ class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, View):
             return HttpResponseRedirect(reverse('check', kwargs={'pk': check.id}))
 
         return render(request, self.template_name, {'form': form, 'check_type': 'Elasticsearch'})
+
+
+class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
+    model = ElasticsearchStatusCheck
+    form_class = GrafanaElasticsearchStatusCheckForm
+    template_name = 'metricsapp/grafana_create.html'
+
+    def get_success_url(self):
+        return reverse('check', kwargs={'pk': self.object.id})

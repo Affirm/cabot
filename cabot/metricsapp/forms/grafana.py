@@ -84,6 +84,13 @@ class GrafanaSeriesForm(forms.Form):
 class GrafanaStatusCheckForm(StatusCheckForm):
     """Generic form for creating a status check. Other metrics sources will subclass"""
     def __init__(self, *args, **kwargs):
+        # Update view
+        if kwargs.get('fields') is None:
+            super(GrafanaStatusCheckForm, self).__init__(*args, **kwargs)
+            self.fields['name'].widget = forms.HiddenInput()
+            self.fields['source'].widget = forms.HiddenInput()
+            return
+
         fields = kwargs.pop('fields')
         super(GrafanaStatusCheckForm, self).__init__(*args, **kwargs)
 

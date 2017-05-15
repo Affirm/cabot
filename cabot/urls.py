@@ -28,8 +28,9 @@ from cabot.cabotapp.views import (
 
 from cabot.metricsapp.views import (
     GrafanaInstanceSelectView, GrafanaDashboardSelectView,
-    GrafanaPanelSelectView, GrafanaElasticsearchStatusCheckCreateView,
-    GrafanaSeriesSelectView
+    GrafanaPanelSelectView, GrafanaSeriesSelectView,
+    GrafanaElasticsearchStatusCheckCreateView, GrafanaElasticsearchStatusCheckUpdateView
+
 )
 from cabot import rest_urls
 
@@ -132,6 +133,8 @@ urlpatterns = patterns('',
     url(r'^grafana/series/', view=GrafanaSeriesSelectView.as_view(), name='grafana-series-select'),
     url(r'^grafana/elasticsearch/create/', view=GrafanaElasticsearchStatusCheckCreateView.as_view(),
         name='grafana-es-create'),
+    url(r'^grafana/elasticsearch/update/(?P<pk>\d+)/', view=GrafanaElasticsearchStatusCheckUpdateView.as_view(),
+        name='grafana-es-update'),
 
     # Comment below line to disable browsable rest api
     url(r'^api-auth/',
