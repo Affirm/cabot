@@ -12,7 +12,7 @@ from cabot.metricsapp.models import GrafanaDataSource, ElasticsearchSource, Graf
 
 class GrafanaInstanceSelectView(LoginRequiredMixin, View):
     form_class = GrafanaInstanceSelectForm
-    template_name = 'metricsapp/grafana_create.html'
+    template_name = 'metricsapp/grafana_check.html'
 
     def get(self, request, *args, **kwargs):
         instances = GrafanaInstance.objects.all()
@@ -41,7 +41,7 @@ class GrafanaInstanceSelectView(LoginRequiredMixin, View):
 
 class GrafanaDashboardSelectView(LoginRequiredMixin, View):
     form_class = GrafanaDashboardForm
-    template_name = 'metricsapp/grafana_create.html'
+    template_name = 'metricsapp/grafana_check.html'
 
     def get(self, request, *args, **kwargs):
         form = self.form_class(dashboards=get_dashboard_choices(request.session['all_dashboards']))
@@ -65,7 +65,7 @@ class GrafanaDashboardSelectView(LoginRequiredMixin, View):
 
 class GrafanaPanelSelectView(LoginRequiredMixin, View):
     form_class = GrafanaPanelForm
-    template_name = 'metricsapp/grafana_create.html'
+    template_name = 'metricsapp/grafana_check.html'
 
     def get(self, request, *args, **kwargs):
         form = self.form_class(panels=get_panel_choices(request.session['dashboard_info'],
@@ -88,7 +88,7 @@ class GrafanaPanelSelectView(LoginRequiredMixin, View):
 
 class GrafanaSeriesSelectView(LoginRequiredMixin, View):
     form_class = GrafanaSeriesForm
-    template_name = 'metricsapp/grafana_create.html'
+    template_name = 'metricsapp/grafana_check.html'
 
     def get(self, request, *args, **kwargs):
         series = get_series_choices(request.session['dashboard_info'], request.session['panel_info'],

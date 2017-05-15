@@ -10,7 +10,7 @@ from cabot.metricsapp.models import ElasticsearchStatusCheck
 
 class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, View):
     form_class = GrafanaElasticsearchStatusCheckForm
-    template_name = 'metricsapp/grafana_create.html'
+    template_name = 'metricsapp/grafana_check.html'
 
     def get(self, request, *args,  **kwargs):
         dashboard_info = request.session['dashboard_info']
@@ -46,10 +46,20 @@ class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, View):
         return render(request, self.template_name, {'form': form, 'check_type': 'Elasticsearch'})
 
 
-class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
+class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, View):
     model = ElasticsearchStatusCheck
     form_class = GrafanaElasticsearchStatusCheckForm
-    template_name = 'metricsapp/grafana_create.html'
+    template_name = 'metricsapp/grafana_check.html'
 
-    def get_success_url(self):
-        return reverse('check', kwargs={'pk': self.object.id})
+    def get(self, request, *args, **kwargs):
+        form = self.form_class()
+        return render(request, self.template_name, {'form': form, 'check_type': 'Elasticsearch'})
+
+    def post(self, request, *args, **kwargs):
+        form = self.form_class(request.POST)
+
+        if form.is_valid() and not form.errors:
+            check = form.save()
+            return HttpResponseRedirect(reverse('check'), kwargs={'pk': check.id})
+
+        return render(request, self.template_name, {'form': form, 'check_type': 'Elasticsearch'})
