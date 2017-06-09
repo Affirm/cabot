@@ -359,6 +359,7 @@ class ServiceForm(forms.ModelForm):
             'instances',
             'alerts',
             'alerts_enabled',
+            'hipchat_room_id',
             'hackpad_id',
         )
         widgets = {

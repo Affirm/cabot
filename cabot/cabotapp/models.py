@@ -141,6 +141,10 @@ class CheckGroupMixin(models.Model):
         help_text='Gist, Hackpad or Refheap js embed with recovery instructions e.g. '
                   'https://you.hackpad.com/some_document.js'
     )
+    hipchat_room_id = models.IntegerField(
+        null=True,
+        help_text='Id of the Hipchat room to be alerted for this service.'
+    )
 
     def __unicode__(self):
         return self.name
