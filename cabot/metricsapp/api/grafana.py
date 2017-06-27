@@ -130,6 +130,17 @@ def get_series_choices(panel_info, templating_dict):
     return out
 
 
+def get_series_datasources(panel_info, series_list):
+    """
+    Get the datasources for each series.
+    :param panel_info: information about a panel
+    :param series_list: list of selected series
+    :return: set of datasources
+    """
+    return set([series['datasource'] for series in panel_info['targets'] if series.get('datasource') \
+                and series['refId'] in series_list])
+
+
 def template_response(data, templating_dict):
     """
     Change data from the Grafana dashboard API response

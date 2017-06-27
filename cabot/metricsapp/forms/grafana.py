@@ -66,6 +66,10 @@ class GrafanaPanelForm(forms.Form):
         panel = eval(self.cleaned_data['panel'])
         datasource = panel['datasource']
 
+        # Allow "Mixed" data source
+        if datasource == '-- Mixed --':
+            return panel
+
         try:
             GrafanaDataSource.objects.get(grafana_source_name=datasource)
         except GrafanaDataSource.DoesNotExist:

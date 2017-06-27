@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
@@ -104,7 +105,7 @@ class GrafanaPanelSelectView(LoginRequiredMixin, View):
         if form.is_valid() and not form.errors:
             panel_dict = form.cleaned_data['panel']
             request.session['panel_id'] = panel_dict['panel_id']
-            request.session['datasource'] = panel_dict['datasource']
+            request.session['panel_datasource'] = panel_dict['datasource']
             request.session['panel_info'] = panel_dict['panel_info']
 
             return HttpResponseRedirect(reverse('grafana-series-select', kwargs=kwargs))
@@ -124,8 +125,8 @@ class GrafanaSeriesSelectView(LoginRequiredMixin, View):
             request.session['series'] = [series[0][0]]
 
             instance_id = request.session['instance_id']
-            datasource = request.session['datasource']
-            url = self.get_url_for_check_type(instance_id, datasource)
+            datasource = request.session['panel_datasource']
+            url = self._get_url_for_check_type(instance_id, datasource)
 
             pk = kwargs.get('pk')
             existing_panel = None
@@ -134,13 +135,14 @@ class GrafanaSeriesSelectView(LoginRequiredMixin, View):
                 existing_panel = check.grafana_panel
                 url = check.refresh_url
 
-            request.session['grafana_panel'] = self.get_grafana_panel_id(instance_id,
+            request.session['grafana_panel'] = self._get_grafana_panel_id(instance_id,
                                                                          request.session['dashboard_uri'],
                                                                          request.session['panel_id'],
                                                                          get_series_ids(request.session['panel_info']),
                                                                          series[0][0],
                                                                          existing_panel,
                                                                          templating_dict)
+            request.session['datasource'] = datasource
 
             return HttpResponseRedirect(reverse(url, kwargs=kwargs))
 
@@ -167,8 +169,18 @@ class GrafanaSeriesSelectView(LoginRequiredMixin, View):
             request.session['series'] = series
 
             instance_id = request.session['instance_id']
-            datasource = request.session['datasource']
-            url = self.get_url_for_check_type(instance_id, datasource)
+            datasource = request.session['panel_datasource']
+            panel_info = request.session['panel_info']
+
+            # If the datasource is mixed, make sure only one datasource is being used in the check
+            if datasource == '-- Mixed --':
+                datasources = get_series_datasources(panel_info, series)
+                if len(datasources) != 1:
+                    raise ValidationError('All series must use the same datasource')
+
+                datasource = datasources.pop()
+
+            url = self._get_url_for_check_type(instance_id, datasource)
 
             pk = kwargs.get('pk')
             existing_panel = None
@@ -177,13 +189,14 @@ class GrafanaSeriesSelectView(LoginRequiredMixin, View):
                 existing_panel = check.grafana_panel
                 url = check.refresh_url
 
-            request.session['grafana_panel'] = self.get_grafana_panel_id(instance_id,
+            request.session['grafana_panel'] = self._get_grafana_panel_id(instance_id,
                                                                          request.session['dashboard_uri'],
                                                                          request.session['panel_id'],
-                                                                         get_series_ids(request.session['panel_info']),
+                                                                         get_series_ids(panel_info),
                                                                          series,
                                                                          existing_panel,
                                                                          templating_dict)
+            request.session['datasource'] = datasource
 
             return HttpResponseRedirect(reverse(url, kwargs=kwargs))
 
@@ -193,7 +206,7 @@ class GrafanaSeriesSelectView(LoginRequiredMixin, View):
                                   templating_dict)
         return render(request, self.template_name, {'form': form, 'panel_url': panel_url})
 
-    def get_url_for_check_type(self, instance_id, datasource):
+    def _get_url_for_check_type(self, instance_id, datasource):
         """
         Based on the instance id and the datasource, find the metrics source type and the
         url for creating a check.
