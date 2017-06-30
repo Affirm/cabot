@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from celery.exceptions import SoftTimeLimitExceeded
 
 from .jenkins import get_job_status
-from .alert import (send_alert, AlertPluginUserData)
+from .alert import send_alert, AlertPluginUserData, check_duty_officer_info
 from .influx import parse_metric
 from .tasks import update_service
 from cabot.cabotapp.models_plugins import HipchatInstance  # noqa
@@ -1164,7 +1164,9 @@ def update_shifts(schedule):
     user_lookup = {}
     for u in users:
         user_lookup[u.username.lower()] = u
-    future_shifts = Shift.objects.filter(start__gt=timezone.now(),
+
+    curr_time = timezone.now()
+    future_shifts = Shift.objects.filter(start__gt=curr_time,
                                          schedule=schedule)
     future_shifts.update(deleted=True)
 
@@ -1193,6 +1195,11 @@ def update_shifts(schedule):
             s.deleted = False
             s.schedule = schedule
             s.save()
+
+            # If the duty officer is going to be changed before the next run
+            # of update shifts, make sure all contact info is updated
+            if s.end - curr_time < 1800:
+                check_duty_officer_info()
 
 
 def delete_shifts(schedule):

@@ -4,6 +4,8 @@ from django.core.mail import send_mail
 from django.db import models
 import os
 from polymorphic import PolymorphicModel
+from cabot_alert_hipchat.models import HipchatAlert, HipchatAlertUserData
+from cabot_alert_twilio.models import TwilioPhoneCall, TwilioSMS, TwilioUserData
 
 logger = logging.getLogger(__name__)
 
@@ -59,25 +61,42 @@ def update_alert_plugins():
 
 def alert_duty_officer_missing_info(service_list, duty_officers, fallback_officers):
     """
-    Send a test alert of every relevant type to a duty_officer
-    and email the fallback if any fail.
+    Check that new oncall officers have their information set up.
+    :param service_list: services the users are on call for
+    :param duty_officers: officers that are supposed to be on call
+    :param fallback_officers: fallback officers for the schedule (will be emailed about missing info)
     """
     alerts = []
     for service in service_list:
-        alerts.extend([alert for alert in service.alerts.all()])
+        alerts.extend([type(alert) for alert in service.alerts.all()])
 
-    for alert in set(alerts):
-        try:
-            # TODO: definitely gonna have to do mocking for service
-            # TODO: emails doesn't even alert duty_officers, should we fork
-            alert.send_alert(None, [], duty_officers)
-        except Exception as e:
-            # alert fallback officer
-            subject = 'Cabot Test Alert to Duty Officer Failed'
-            body = '{} alert to {} failed. Check whether his or her contact details are up to date in the profile page.'
-            send_mail(
-                subject=subject,
-                message=body,
-                from_email='Cabot {}'.format(os.environ.get('CABOT_FROM_EMAIL')),
-                recipients=[user.email for user in duty_officers + fallback_officers]
-            )
+    emails = [u.email for u in duty_officers] + [u.email for u in fallback_officers]
+    for user in duty_officers:
+        if HipchatAlert in alerts:
+            hipchat_alias_list = HipchatAlertUserData.objects.filter(user=user)
+            if hipchat_alias_list == [] or hipchat_alias_list[0] == '':
+                _send_missing_info_email(user, 'Hipchat', emails)
+
+        if TwilioPhoneCall in alerts or TwilioSMS in alerts:
+            phone_number_list = TwilioUserData.objects.filter(user=user)
+            if phone_number_list == [] or len(phone_number_list[0]) < 10:
+                _send_missing_info_email(user, 'Twilio', emails)
+
+
+def _send_missing_info_email(officer, alert_type, emails):
+    """
+    Send an email about a duty officer missing profile info.
+    :param officer: the officer who is missing info
+    :param alert_type: the type of alert info is missing for
+    :param emails: list of users to email
+    """
+    subject = 'Cabot Duty Officer {} Missing Information'.format(officer.email)
+    body = 'Missing {} info for {}. Make sure all contact details are up to date in the profile page.'.format(
+        alert_type, officer.email
+    )
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email='Cabot {}'.format(os.environ.get('CABOT_FROM_EMAIL')),
+        recipients=emails
+    )
