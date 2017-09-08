@@ -36,7 +36,7 @@ class TestAlerts(LocalTestCase):
         self.service.schedules = []
         self.service.alert()
         self.assertEqual(fake_send_alert.call_count, 1)
-        fake_send_alert.assert_called_with(self.service)
+        fake_send_alert.assert_called_with(self.service, duty_officers=[], fallback_officers=[])
 
     @patch('cabot.cabotapp.models.send_alert')
     def test_alert_empty_schedule(self, fake_send_alert):
@@ -77,11 +77,9 @@ class TestAlerts(LocalTestCase):
         service.update_status()
 
         service.alert()
-        self.assertEqual(fake_send_alert.call_count, 2)
         # Since there are no duty officers with profiles, the fallback will be alerted
-        calls = [call(service, duty_officers=[self.user], fallback_officers=[self.user]),
-                 call(service, duty_officers=[user], fallback_officers=[user])]
-        fake_send_alert.has_calls(calls)
+        fake_send_alert.assert_called_once_with(service, duty_officers=[self.user, user],
+                                                fallback_officers=[self.user, user])
 
     @patch('cabot.cabotapp.alert.AlertPlugin.send_alert')
     def test_alert_plugin(self, fake_send_alert):

@@ -195,12 +195,12 @@ class CheckGroupMixin(models.Model):
 
         schedules = self.schedules.all()
 
-        if not schedules:
-            send_alert(self)
-
+        duty_officers = []
+        fallback_officers = []
         for schedule in schedules:
-            send_alert(self, duty_officers=get_duty_officers(schedule),
-                       fallback_officers=get_fallback_officers(schedule))
+            duty_officers.extend(get_duty_officers(schedule))
+            fallback_officers.extend(get_fallback_officers(schedule))
+        send_alert(self, duty_officers=duty_officers, fallback_officers=fallback_officers)
 
     @property
     def recent_snapshots(self):
