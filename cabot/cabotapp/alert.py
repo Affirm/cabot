@@ -1,6 +1,8 @@
 import logging
 
+from datetime import timedelta
 from django.db import models
+from django.utils import timezone
 from polymorphic import PolymorphicModel
 
 logger = logging.getLogger(__name__)
@@ -35,18 +37,33 @@ class AlertPluginUserData(PolymorphicModel):
         return u'%s' % (self.title)
 
 
-def send_alert(service, duty_officers=[], fallback_officers=[]):
+def send_alert(service, duty_officers=None,
+               escalation_officers=None,
+               fallback_officers=None):
+
+    duty_officers = duty_officers or []
+    escalation_officers = escalation_officers or []
+    fallback_officers = fallback_officers or []
+
+    escalation_cutoff = timezone.now() - timedelta(
+        minutes=service.escalate_after)
+
     users = service.users_to_notify.filter(is_active=True)
+
     for alert in service.alerts.all():
-        try:
-            alert.send_alert(service, users, duty_officers)
-        except Exception:
-            logging.exception('Could not sent {} alert'.format(alert.name))
-            if fallback_officers:
-                try:
-                    alert.send_alert(service, users, fallback_officers)
-                except Exception:
-                    logging.exception('Could not send {} alert to fallback officer'.format(alert.name))
+        for user_list in [duty_officers, escalation_officers, fallback_officers]:
+            if not user_list:
+                continue
+            try:
+                alert.send_alert(service, users, user_list)
+                break
+            except Exception:
+                logging.exception('Could not sent {} alert'.format(alert.name))
+
+                if escalation_cutoff < service.last_alert_sent:
+                    logging.info('Service {}: Not escalating {}'.format(
+                        service.name, alert.name))
+                    break
 
 
 def update_alert_plugins():

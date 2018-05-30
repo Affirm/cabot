@@ -225,6 +225,8 @@ class ServiceForm(forms.ModelForm):
             'url',
             'users_to_notify',
             'schedules',
+            'escalation_schedules',
+            'escalate_after',
             'status_checks',
             'alerts',
             'alerts_enabled',

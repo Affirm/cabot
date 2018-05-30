@@ -96,6 +96,18 @@ class CheckGroupMixin(models.Model):
         null=True,
         help_text='Oncall schedule to be alerted.'
     )
+    escalation_schedules = models.ManyToManyField(
+        'Escalation Schedules',
+        blank=True,
+        null=True,
+        help_text='Oncall schedule to be alerted in case of missed alerts.'
+    )
+    escalate_after = models.IntegerField(
+        'Escalation timeout (minutes)',
+        blank=True,
+        null=True,
+        help_text='The time, in minutes, after which the alert is escalated',
+    )
     alerts_enabled = models.BooleanField(
         default=True,
         help_text='Alert when this service is not healthy.',
@@ -190,13 +202,15 @@ class CheckGroupMixin(models.Model):
         self.snapshot.did_send_alert = True
         self.snapshot.save()
 
-        schedules = self.schedules.all()
+        schedules = self.schedules.all() or []
 
-        if not schedules:
-            send_alert(self)
+        escalation_officers = []
+        for escalation in self.escalation_schedules.all():
+            escalation_officers.extend(get_duty_officers(escalation))
 
         for schedule in schedules:
             send_alert(self, duty_officers=get_duty_officers(schedule),
+                       escalation_officers=escalation_officers,
                        fallback_officers=get_fallback_officers(schedule))
 
     @property
