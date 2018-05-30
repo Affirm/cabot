@@ -107,7 +107,8 @@ class CheckGroupMixin(models.Model):
         blank=True,
         null=True,
         default=5,
-        help_text='The time, in minutes, after which the alert is escalated',
+        help_text='The time, in minutes, after which the alert is escalated. '
+                  'If set to 0, the alert is escalated immediately',
     )
     alerts_enabled = models.BooleanField(
         default=True,
