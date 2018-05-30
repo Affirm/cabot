@@ -106,6 +106,7 @@ class CheckGroupMixin(models.Model):
         'Escalation timeout (minutes)',
         blank=True,
         null=True,
+        default=5,
         help_text='The time, in minutes, after which the alert is escalated',
     )
     alerts_enabled = models.BooleanField(
