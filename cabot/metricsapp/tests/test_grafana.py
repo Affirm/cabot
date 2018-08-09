@@ -11,7 +11,7 @@ from cabot.metricsapp.api import get_dashboard_choices, get_panel_choices, creat
     get_series_choices, get_status_check_fields, get_panel_url, get_series_ids, get_updated_datetime, get_panel_info
 from cabot.metricsapp.models import ElasticsearchStatusCheck, ElasticsearchSource, GrafanaDataSource, \
     GrafanaInstance, GrafanaPanel
-from cabot.metricsapp.tasks import sync_grafana_check, sync_all_grafana_checks
+from cabot.metricsapp.tasks import sync_grafana_check, sync_all_grafana_checks, grafana_query_diff
 
 
 def get_json_file(file):
@@ -333,11 +333,13 @@ class TestDashboardSync(TestCase):
         self.check.queries = self.old_queries
         self.check.save()
 
+        diff = grafana_query_diff(json.loads(self.old_queries), json.loads(self.queries))
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 123)))
+
         send_email.assert_called_once_with(args=(['hi@affirm.com', 'admin@affirm.com', 'enduser@affirm.com'],
                                                  'http://localhost/check/{}/\n\n'
-                                                 'The queries have changed from\n{}\nto\n{}.'.format(
-                                                     self.check.id, self.old_queries, self.queries
+                                                 'The queries have changed from:\n\n{}\n\nto:\n\n{}\n\nDiff:\n{}'.format(
+                                                     self.check.id, self.old_queries, self.queries, diff
                                                  ), 'Also Great Dashboard: 42'))
         self.assertEqual(ElasticsearchStatusCheck.objects.get(id=self.check.id).queries, str(self.queries))
 
@@ -349,12 +351,15 @@ class TestDashboardSync(TestCase):
         self.check.queries = self.old_queries
         self.check.save()
 
+        diff = grafana_query_diff(json.loads(self.old_queries), json.loads(self.queries))
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 12312)))
+
         send_email.assert_called_once_with(args=(['hi@affirm.com', 'admin@affirm.com', 'enduser@affirm.com'],
                                                  'http://localhost/check/{}/\n\n'
                                                  'The panel series ids have changed from B,E to B. The check has '
-                                                 'not been changed.\n\nThe queries have changed from\n{}\nto\n{}.'
-                                                 .format(self.check.id, self.old_queries, self.queries),
+                                                 'not been changed.\n\nThe queries have changed from:\n\n{}\n\n'
+                                                 'to:\n\n{}\n\nDiff:\n{}'
+                                                 .format(self.check.id, self.old_queries, self.queries, diff),
                                                  'Also Great Dashboard: 42'))
         check = ElasticsearchStatusCheck.objects.get(id=self.check.id)
         panel = GrafanaPanel.objects.get(id=self.panel.id)
