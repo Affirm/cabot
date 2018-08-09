@@ -11,7 +11,7 @@ from cabot.metricsapp.api import get_dashboard_choices, get_panel_choices, creat
     get_series_choices, get_status_check_fields, get_panel_url, get_series_ids, get_updated_datetime, get_panel_info
 from cabot.metricsapp.models import ElasticsearchStatusCheck, ElasticsearchSource, GrafanaDataSource, \
     GrafanaInstance, GrafanaPanel
-from cabot.metricsapp.tasks import sync_grafana_check, sync_all_grafana_checks, grafana_query_diff
+from cabot.metricsapp.tasks import sync_grafana_check, sync_all_grafana_checks
 
 
 def get_json_file(file):
@@ -333,14 +333,23 @@ class TestDashboardSync(TestCase):
         self.check.queries = self.old_queries
         self.check.save()
 
-        diff = grafana_query_diff(json.loads(self.old_queries), json.loads(self.queries))
+        diff = '{\n  "0": {\n    "aggs": {\n      "agg": {\n        "$delete": [\n          "terms"\n       ' \
+               ' ], \n        "aggs": {\n          "$replace": {\n            "sum: 42": {\n              ' \
+               '"sum": {\n                "field": "value"\n              }\n            }\n          }\n       ' \
+               ' }, \n        "date_histogram": {\n          "extended_bounds": {\n            "max": "now", ' \
+               '\n            "min": "now-180m"\n          }, \n          "field": "@timestamp", \n          ' \
+               '"interval": "1m"\n        }\n      }\n    }, \n    "query": {\n      "bool": {\n        ' \
+               '"must": {\n          "0": {\n            "query_string": {\n              "query": ' \
+               '"query:life-the-universe-and-everything"\n            }\n          }\n        }\n      }\n    }\n  ' \
+               '}\n}'
+
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 123)))
 
         send_email.assert_called_once_with(args=(['hi@affirm.com', 'admin@affirm.com', 'enduser@affirm.com'],
                                                  'http://localhost/check/{}/\n\n'
-                                                 'The queries have changed from:\n\n{}\n\nto:\n\n{}\n\nDiff:\n{}'.format(
-                                                     self.check.id, self.old_queries, self.queries, diff
-                                                 ), 'Also Great Dashboard: 42'))
+                                                 'The queries have changed from:\n\n{}\n\nto:\n\n{}\n\nDiff:\n{}'
+                                                 .format(self.check.id, self.old_queries, self.queries, diff),
+                                                 'Also Great Dashboard: 42'))
         self.assertEqual(ElasticsearchStatusCheck.objects.get(id=self.check.id).queries, str(self.queries))
 
     @patch('cabot.metricsapp.tasks.get_dashboard_info', fake_get_dashboard_info)
@@ -351,7 +360,15 @@ class TestDashboardSync(TestCase):
         self.check.queries = self.old_queries
         self.check.save()
 
-        diff = grafana_query_diff(json.loads(self.old_queries), json.loads(self.queries))
+        diff = '{\n  "0": {\n    "aggs": {\n      "agg": {\n        "$delete": [\n          "terms"\n        ], ' \
+               '\n        "aggs": {\n          "$replace": {\n            "sum: 42": {\n              "sum": {\n      '\
+               '          "field": "value"\n              }\n            }\n          }\n        }, \n        ' \
+               '"date_histogram": {\n          "extended_bounds": {\n            "max": "now", \n            "min": ' \
+               '"now-180m"\n          }, \n          "field": "@timestamp", \n          "interval": "1m"\n        }\n '\
+               '     }\n    }, \n    "query": {\n      "bool": {\n        "must": {\n          "0": {\n            ' \
+               '"query_string": {\n              "query": "query:life-the-universe-and-everything"\n            }\n   '\
+               '       }\n        }\n      }\n    }\n  }\n}'
+
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 12312)))
 
         send_email.assert_called_once_with(args=(['hi@affirm.com', 'admin@affirm.com', 'enduser@affirm.com'],
