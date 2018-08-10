@@ -19,7 +19,10 @@ services:
     env_file:
      - conf/development.env
     image: cabot:web
-    command: bash -euc "dockerize -wait tcp://db_psql:5432 -timeout 60s; dockerize -wait tcp://root:test@db_mysql:3306 -timeout 60s; python manage.py celery worker -B -A cabot --loglevel=DEBUG --concurrency=16 --logfile=/var/log/cabot-celery.log -Ofair"
+    command: >
+      bash -euc "dockerize -wait tcp://db_psql:5432 -timeout 60s;
+      dockerize -wait tcp://root:test@db_mysql:3306 -timeout 60s;
+      python manage.py celery worker -B -A cabot --loglevel=DEBUG --concurrency=16 -Ofair"
     volumes:
      - .:/code
     links:
