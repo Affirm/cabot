@@ -373,7 +373,7 @@ class TestDashboardSync(TestCase):
       }
     }
   }
-}"""
+}"""  # noqa: W291 (suppress trailing whitespace warning)
 
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 123)))
 
@@ -432,7 +432,7 @@ class TestDashboardSync(TestCase):
       }
     }
   }
-}"""
+}"""  # noqa: W291 (suppress trailing whitespace warning)
 
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 12312)))
 
