@@ -333,15 +333,47 @@ class TestDashboardSync(TestCase):
         self.check.queries = self.old_queries
         self.check.save()
 
-        diff = '{\n  "0": {\n    "aggs": {\n      "agg": {\n        "$delete": [\n          "terms"\n       ' \
-               ' ], \n        "aggs": {\n          "$replace": {\n            "sum: 42": {\n              ' \
-               '"sum": {\n                "field": "value"\n              }\n            }\n          }\n       ' \
-               ' }, \n        "date_histogram": {\n          "extended_bounds": {\n            "max": "now", ' \
-               '\n            "min": "now-180m"\n          }, \n          "field": "@timestamp", \n          ' \
-               '"interval": "1m"\n        }\n      }\n    }, \n    "query": {\n      "bool": {\n        ' \
-               '"must": {\n          "0": {\n            "query_string": {\n              "query": ' \
-               '"query:life-the-universe-and-everything"\n            }\n          }\n        }\n      }\n    }\n  ' \
-               '}\n}'
+        # careful copy/pasting in an IDE - there is whitespace at the end of some lines
+        diff = u"""\
+{
+  "0": {
+    "aggs": {
+      "agg": {
+        "$delete": [
+          "terms"
+        ], 
+        "aggs": {
+          "$replace": {
+            "sum: 42": {
+              "sum": {
+                "field": "value"
+              }
+            }
+          }
+        }, 
+        "date_histogram": {
+          "extended_bounds": {
+            "max": "now", 
+            "min": "now-180m"
+          }, 
+          "field": "@timestamp", 
+          "interval": "1m"
+        }
+      }
+    }, 
+    "query": {
+      "bool": {
+        "must": {
+          "0": {
+            "query_string": {
+              "query": "query:life-the-universe-and-everything"
+            }
+          }
+        }
+      }
+    }
+  }
+}"""
 
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 123)))
 
@@ -360,14 +392,47 @@ class TestDashboardSync(TestCase):
         self.check.queries = self.old_queries
         self.check.save()
 
-        diff = '{\n  "0": {\n    "aggs": {\n      "agg": {\n        "$delete": [\n          "terms"\n        ], ' \
-               '\n        "aggs": {\n          "$replace": {\n            "sum: 42": {\n              "sum": {\n      '\
-               '          "field": "value"\n              }\n            }\n          }\n        }, \n        ' \
-               '"date_histogram": {\n          "extended_bounds": {\n            "max": "now", \n            "min": ' \
-               '"now-180m"\n          }, \n          "field": "@timestamp", \n          "interval": "1m"\n        }\n '\
-               '     }\n    }, \n    "query": {\n      "bool": {\n        "must": {\n          "0": {\n            ' \
-               '"query_string": {\n              "query": "query:life-the-universe-and-everything"\n            }\n   '\
-               '       }\n        }\n      }\n    }\n  }\n}'
+        # careful copy/pasting in an IDE - there is whitespace at the end of some lines
+        diff = u"""\
+{
+  "0": {
+    "aggs": {
+      "agg": {
+        "$delete": [
+          "terms"
+        ], 
+        "aggs": {
+          "$replace": {
+            "sum: 42": {
+              "sum": {
+                "field": "value"
+              }
+            }
+          }
+        }, 
+        "date_histogram": {
+          "extended_bounds": {
+            "max": "now", 
+            "min": "now-180m"
+          }, 
+          "field": "@timestamp", 
+          "interval": "1m"
+        }
+      }
+    }, 
+    "query": {
+      "bool": {
+        "must": {
+          "0": {
+            "query_string": {
+              "query": "query:life-the-universe-and-everything"
+            }
+          }
+        }
+      }
+    }
+  }
+}"""
 
         sync_grafana_check(self.check.id, str(datetime(2017, 2, 1, 0, 0, 1, 12312)))
 
