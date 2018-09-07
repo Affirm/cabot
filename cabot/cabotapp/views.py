@@ -597,7 +597,24 @@ class ServiceListView(LoginRequiredMixin, ListView):
     context_object_name = 'services'
 
     def get_queryset(self):
-        return Service.objects.all().order_by('name').prefetch_related('status_checks')
+        # we preload the check counts manually here to avoid an extra 4 DB hits per service in the template
+        # we use manual SQL because (as far as I can tell) the tools needed to express this in ORM language
+        # don't exist in django 1.6 :(
+        return Service.objects.all().order_by('name')\
+            .extra(select={
+            'active_checks_count':
+                "SELECT COUNT(*)\n"
+                "FROM cabotapp_statuscheck\n"
+                "INNER JOIN cabotapp_service_status_checks ON (cabotapp_statuscheck.id = cabotapp_service_status_checks.statuscheck_id)\n"
+                "WHERE cabotapp_statuscheck.active = TRUE\n"
+                "  AND cabotapp_service_status_checks.service_id = cabotapp_service.id",
+            'inactive_checks_count':
+                "SELECT COUNT(*)\n"
+                "FROM cabotapp_statuscheck\n"
+                "INNER JOIN cabotapp_service_status_checks ON (cabotapp_statuscheck.id = cabotapp_service_status_checks.statuscheck_id)\n"
+                "WHERE cabotapp_statuscheck.active = FALSE\n"
+                "  AND cabotapp_service_status_checks.service_id = cabotapp_service.id",
+        })
 
     def get_context_data(self, **kwargs):
         context = super(ServiceListView, self).get_context_data(**kwargs)
