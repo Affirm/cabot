@@ -242,3 +242,5 @@ def append_plugin_urls():
             urlpatterns += patterns('', url(r'^plugins/%s/' % plugin, include('%s.urls' % plugin)))
 
 append_plugin_urls()
+
+urlpatterns += [url(r'^silk/', include('silk.urls', namespace='silk'))]

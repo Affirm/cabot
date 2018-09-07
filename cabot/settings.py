@@ -93,6 +93,7 @@ TEMPLATE_LOADERS = (
 )
 
 MIDDLEWARE_CLASSES = (
+    'silk.middleware.SilkyMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -129,6 +130,7 @@ INSTALLED_APPS = (
     'cabot.metricsapp',
     'rest_framework',
     'social.apps.django_app.default',
+    'silk',
 )
 
 # Load additional apps from configuration file

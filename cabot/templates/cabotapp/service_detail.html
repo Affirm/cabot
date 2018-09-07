@@ -147,10 +147,8 @@
 
 {% block js %}
 {% load compress %}
-{% load jsonify %}
 {{ block.super }}
 <script type="text/javascript">
-  window.SERVICE_HISTORY = {{ service.recent_snapshots|jsonify }}
 </script>
 <script type="text/javascript" src="{{ STATIC_URL }}arachnys/js/d3.js"></script>
 {% compress js %}
