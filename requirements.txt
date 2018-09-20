@@ -48,3 +48,4 @@ unittest-xml-reporting==2.1.0
 PyMySQL==0.8.0
 jsondiff==1.1.2
 django-timezone-field==3.0
+django-reversion==1.8.7

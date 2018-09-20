@@ -142,6 +142,7 @@ INSTALLED_APPS = (
     'rest_framework',
     'social_django',
     'timezone_field',
+    'reversion',
 )
 
 # Load additional apps from configuration file

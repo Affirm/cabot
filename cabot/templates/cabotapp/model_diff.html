@@ -1,0 +1,29 @@
+<ul class="list-unstyled">
+  {% for revision, changes in revisions %}
+    <li {% if not forloop.first %}class="collapse last-changed-detail"{% endif %}>
+      {{ revision.date_created }}
+      {% if revision.user %}<a href="mailto:{{ revision.user.email }}">{{ revision.user.username }}</a>{% endif %}
+      {% if revision.comment %}
+        {{ revision.comment }}
+      {% else %}
+        changed {{ changes.keys|join:", "|truncatechars:30 }}
+      {% endif %}
+      {% if forloop.first %}
+        <span class="glyphicon glyphicon-plus" data-toggle="collapse" data-target=".last-changed-detail"></span>
+      {% endif %}
+      <ul class="collapse last-changed-detail">
+        {% for field_name, change in changes.items %}
+          {% autoescape off %}
+            {# need to use the truncate_html version because change strings can be HTML (for styling...) #}
+            {# truncatechars_html doesn't exist in django 1.6 and backporting requires changing the Truncator class #}
+            {# :D :( :'( #}
+            <li>{{ field_name }}: {{ change.0|truncatewords_html:12 }}
+              <span class="glyphicon glyphicon-arrow-right"></span>
+              {{ change.1|truncatewords_html:6 }}
+            </li>
+          {% endautoescape %}
+        {% endfor %}
+      </ul>
+    </li>
+  {% endfor %}
+</ul>

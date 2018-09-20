@@ -57,6 +57,11 @@
       <div class="col-xs-8"><h5>None</h5></div>
       {% endif %}
     </div>
+    <div class="col-xs-12">
+      <div class="col-xs-1"><h5><i class="glyphicon glyphicon-flag"></i></h5></div>
+      <div class="col-xs-3"><h5><span class="break"></span>Last changed</h5></div>
+      <div class="col-xs-8">{% include 'cabotapp/model_diff.html' with revisions=revisions only %}</div>
+    </div>
   </div>
   <div class="col-xs-12 col-md-6">
     <div class="col-xs-1"><h3><i class="fa fa-bar-chart-o"></i></h3></div>

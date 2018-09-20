@@ -4,16 +4,19 @@ from django.core.urlresolvers import reverse
 from django.shortcuts import render
 from django.views.generic import UpdateView, CreateView
 from cabot.cabotapp.views import LoginRequiredMixin
+from cabot.cabotapp.revision_utils import RevisionMixin
 from cabot.metricsapp.api import get_es_status_check_fields, get_status_check_fields
 from cabot.metricsapp.forms import GrafanaElasticsearchStatusCheckForm, GrafanaElasticsearchStatusCheckUpdateForm
 from cabot.metricsapp.models import ElasticsearchStatusCheck, GrafanaDataSource
 from cabot.metricsapp.models.grafana import build_grafana_panel_from_session, set_grafana_panel_from_session
 
 
-class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, CreateView):
+class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, RevisionMixin, CreateView):
     model = ElasticsearchStatusCheck
     form_class = GrafanaElasticsearchStatusCheckForm
     template_name = 'metricsapp/grafana_create.html'
+    revision_comment = 'created check'
+    revision_follow = ['service_set']
 
     def get_form_kwargs(self):
         kwargs = super(GrafanaElasticsearchStatusCheckCreateView, self).get_form_kwargs()
@@ -53,10 +56,11 @@ class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, CreateView):
         return response
 
 
-class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
+class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, RevisionMixin, UpdateView):
     model = ElasticsearchStatusCheck
     form_class = GrafanaElasticsearchStatusCheckUpdateForm
     template_name = 'metricsapp/grafana_create.html'
+    revision_follow = ['service_set']
 
     # note - this view also updates self.object.grafana_panel (via ElasticsearchStatusCheckUpdateForm)
 
@@ -94,6 +98,8 @@ class GrafanaElasticsearchStatusCheckRefreshView(GrafanaElasticsearchStatusCheck
     Note this requires the session vars by earlier Views in the "create Grafana check" flow to work
     (GrafanaDashboardSelectView, etc).
     """
+    revision_comment = "Refreshed from Grafana"
+
     def get_form_kwargs(self):
         """Add kwargs['data'] and fill it with the latest values from Grafana"""
         kwargs = super(GrafanaElasticsearchStatusCheckRefreshView, self).get_form_kwargs()

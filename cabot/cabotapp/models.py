@@ -26,6 +26,7 @@ import re
 import socket
 import time
 import yaml
+import reversion
 
 import requests
 from celery.utils.log import get_task_logger
@@ -76,6 +77,7 @@ def get_success_with_retries(recent_results, retries=0):
     return False
 
 
+@reversion.register
 class CheckGroupMixin(models.Model):
 
     class Meta:
@@ -351,6 +353,7 @@ class ScheduleProblems(models.Model):
         return self.silence_warnings_until is not None and self.silence_warnings_until > now
 
 
+@reversion.register
 class Service(CheckGroupMixin):
 
     def update_status(self):
@@ -401,6 +404,7 @@ class ServiceStatusSnapshot(Snapshot):
         return u"%s: %s" % (self.service.name, self.overall_status)
 
 
+@reversion.register(exclude=['last_run', 'cached_health', 'calculated_status'])
 class StatusCheck(PolymorphicModel):
     """
     Base class for polymorphic models. We're going to use
@@ -665,6 +669,7 @@ class ActivityCounter(models.Model):
             self.save()
 
 
+@reversion.register(follow=['statuscheck_ptr'])
 class HttpStatusCheck(StatusCheck):
 
     @property
@@ -814,6 +819,7 @@ class HttpStatusCheck(StatusCheck):
         return result
 
 
+@reversion.register(follow=['statuscheck_ptr'])
 class JenkinsStatusCheck(StatusCheck):
 
     @property
@@ -903,6 +909,7 @@ class JenkinsStatusCheck(StatusCheck):
         return result
 
 
+@reversion.register(follow=['statuscheck_ptr'])
 class TCPStatusCheck(StatusCheck):
 
     @property

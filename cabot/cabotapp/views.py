@@ -8,6 +8,7 @@ from django.conf import settings
 from timezone_field import TimeZoneFormField
 
 from cabot.cabotapp.alert import AlertPlugin
+from cabot.cabotapp.revision_utils import get_revisions, RevisionMixin
 from models import (StatusCheck,
                     JenkinsStatusCheck,
                     HttpStatusCheck,
@@ -379,8 +380,10 @@ class StatusCheckReportForm(forms.Form):
         return checks
 
 
-class CheckCreateView(LoginRequiredMixin, CreateView):
+class CheckCreateView(LoginRequiredMixin, RevisionMixin, CreateView):
     template_name = 'cabotapp/statuscheck_form.html'
+    revision_comment = 'created check'
+    revision_follow = ['service_set']
 
     def form_valid(self, form):
         if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
@@ -412,8 +415,9 @@ class CheckCreateView(LoginRequiredMixin, CreateView):
         return reverse('check', kwargs={'pk': self.object.id})
 
 
-class CheckUpdateView(LoginRequiredMixin, UpdateView):
+class CheckUpdateView(LoginRequiredMixin, RevisionMixin, UpdateView):
     template_name = 'cabotapp/statuscheck_form.html'
+    revision_follow = ['service_set']
 
     def get_success_url(self):
         return reverse('check', kwargs={'pk': self.object.id})
@@ -465,11 +469,13 @@ class StatusCheckListView(LoginRequiredMixin, ListView):
         return StatusCheck.objects.all().order_by('name').prefetch_related('service_set')
 
 
-class StatusCheckDeleteView(LoginRequiredMixin, DeleteView):
+class StatusCheckDeleteView(LoginRequiredMixin, RevisionMixin, DeleteView):
     model = StatusCheck
     success_url = reverse_lazy('checks')
     context_object_name = 'check'
     template_name = 'cabotapp/statuscheck_confirm_delete.html'
+    revision_comment = 'deleted check'
+    revision_follow = ['service_set']
 
 
 class StatusCheckDetailView(LoginRequiredMixin, DetailView):
@@ -482,6 +488,7 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
             context = {}
         context['checkresults'] = self.object.statuscheckresult_set.order_by(
             '-time_complete')[:100]
+        context['revisions'] = get_revisions(self.object)
         return super(StatusCheckDetailView, self).render_to_response(context, *args, **kwargs)
 
 
@@ -636,26 +643,30 @@ class ServiceDetailView(LoginRequiredMixin, DetailView):
             'checks': self.object.status_checks.all(),
             'service': self.object,
             'date_from': date_from,
-            'date_to': date_from + relativedelta(months=1) - relativedelta(days=1)
+            'date_to': date_from + relativedelta(months=1) - relativedelta(days=1),
         })
+        context['revisions'] = get_revisions(self.object)
         return context
 
 
-class ServiceCreateView(LoginRequiredMixin, CreateView):
+class ServiceCreateView(LoginRequiredMixin, RevisionMixin, CreateView):
     model = Service
     form_class = ServiceForm
+    revision_comment = 'created service'
 
     def get_success_url(self):
         return reverse('service', kwargs={'pk': self.object.id})
 
 
-class ScheduleCreateView(LoginRequiredMixin, CreateView):
+class ScheduleCreateView(LoginRequiredMixin, RevisionMixin, CreateView):
     model = Schedule
     form_class = ScheduleForm
     success_url = reverse_lazy('shifts')
+    revision_comment = 'created schedule'
+    revision_follow = ['service_set']
 
 
-class ServiceUpdateView(LoginRequiredMixin, UpdateView):
+class ServiceUpdateView(LoginRequiredMixin, RevisionMixin, UpdateView):
     model = Service
     form_class = ServiceForm
 
@@ -663,27 +674,31 @@ class ServiceUpdateView(LoginRequiredMixin, UpdateView):
         return reverse('service', kwargs={'pk': self.object.id})
 
 
-class ScheduleUpdateView(LoginRequiredMixin, UpdateView):
+class ScheduleUpdateView(LoginRequiredMixin, RevisionMixin, UpdateView):
     model = Schedule
     form_class = ScheduleForm
     context_object_name = 'schedules'
     success_url = reverse_lazy('shifts')
+    revision_follow = ['service_set']
 
 
-class ServiceDeleteView(LoginRequiredMixin, DeleteView):
+class ServiceDeleteView(LoginRequiredMixin, RevisionMixin, DeleteView):
     model = Service
     success_url = reverse_lazy('services')
     context_object_name = 'service'
     template_name = 'cabotapp/service_confirm_delete.html'
+    revision_comment = 'deleted service'
 
 
-class ScheduleDeleteView(LoginRequiredMixin, DeleteView):
+class ScheduleDeleteView(LoginRequiredMixin, RevisionMixin, DeleteView):
     model = Schedule
     form_class = ScheduleForm
 
     success_url = reverse_lazy('shifts')
     context_object_name = 'schedule'
     template_name = 'cabotapp/schedule_confirm_delete.html'
+    revision_comment = 'deleted schedule'
+    revision_follow = ['service_set']
 
 
 class ScheduleSnoozeWarningsView(LoginRequiredMixin, View):

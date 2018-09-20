@@ -1,3 +1,4 @@
+import reversion
 from django.contrib import admin
 from .models import (
     UserProfile,
@@ -13,11 +14,20 @@ from .models import (
 )
 from .alert import AlertPluginUserData, AlertPlugin
 
+
+class ServiceAdmin(reversion.VersionAdmin):
+    pass
+
+
+class StatusCheckAdmin(reversion.VersionAdmin):
+    pass
+
+
 admin.site.register(UserProfile)
 admin.site.register(Shift)
-admin.site.register(Service)
+admin.site.register(Service, ServiceAdmin)
 admin.site.register(ServiceStatusSnapshot)
-admin.site.register(StatusCheck)
+admin.site.register(StatusCheck, StatusCheckAdmin)
 admin.site.register(StatusCheckResult)
 admin.site.register(ActivityCounter)
 admin.site.register(AlertPlugin)
