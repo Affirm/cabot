@@ -380,7 +380,7 @@ There are gaps in the schedule (times are UTC):
     def test_validate_schedule_ical_404(self):
         update_schedule_problems(self.schedule)
         self.assertTrue(self.schedule.has_problems())
-        self.assertEquals(self.schedule.problems.text, "The schedule's iCal URL returns an error "
+        self.assertEquals(self.schedule.problems.text, "The schedule's iCal URL returns an HTTP error "
                                                        "(404 Client Error: Not Found for url: http_response.html).")
 
     @patch('cabot.cabotapp.models.requests.get', fake_http_200_response)
