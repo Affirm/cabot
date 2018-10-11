@@ -805,8 +805,10 @@ class ActivityCounterView(View):
 
         try:
             # Lookup the check and make sure it has a related ActivityCounter
+            # - Use select_for_update() to lock matching rows so that concurrent
+            #   requests don't clobber each other when inc/decrementing.
             check = self._lookup_check(id, name)
-            ActivityCounter.objects.get_or_create(status_check=check)
+            ActivityCounter.objects.select_for_update().get_or_create(status_check=check)
 
             # Perform the action and return the result
             action = request.GET.get('action', 'read')
