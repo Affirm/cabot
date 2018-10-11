@@ -6,7 +6,13 @@
   </div>
 </div>
 {% csrf_token %}
-{% for field in form %}
+{% regroup form by field.group_name as field_groups %}
+{% for field_group in field_groups %}
+  {% if field_group.grouper %}
+    <h3>{{ field_group.grouper }}</h3>
+    <hr/>
+  {% endif %}
+  {% for field in field_group.list %}
 <div class="form-group{% if field.errors %} has-error{% endif %}">
   <div class="col-xs-12">
     <label class="col-xs-2 control-label">{{ field.label_tag }}</label>
@@ -29,4 +35,5 @@
   </div>
   {% endif %}
 </div>
+{% endfor %}
 {% endfor %}
