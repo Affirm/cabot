@@ -807,13 +807,17 @@ class ActivityCounterView(View):
             # Lookup the check and make sure it has a related ActivityCounter
             # - Use select_for_update() to lock matching rows so that concurrent
             #   requests don't clobber each other when inc/decrementing.
+            # - IMPORTANT: pass the 'counter' object around rather than re-fetching
+            #   it via `check.activity_counter`. This will prevent us from reading
+            #   old values during the transaction (particularly for MySQL, which
+            #   in our case will snapshot the DB at the start of the transaction.
             check = self._lookup_check(id, name)
-            ActivityCounter.objects.select_for_update().get_or_create(status_check=check)
+            counter = ActivityCounter.objects.select_for_update().get_or_create(status_check=check)[0]
 
             # Perform the action and return the result
             action = request.GET.get('action', 'read')
             pretty = request.GET.get('pretty') == 'true'
-            message = self._handle_action(check, action)
+            message = self._handle_action(action, counter)
 
         except ViewError as e:
             return json_error_response(e.message, e.code)
@@ -821,7 +825,7 @@ class ActivityCounterView(View):
         data = {
             'check.id': check.id,
             'check.name': check.name,
-            'counter.count': check.activity_counter.count,
+            'counter.count': counter.count,
             'counter.enabled': check.use_activity_counter,
         }
         if message:
@@ -845,9 +849,9 @@ class ActivityCounterView(View):
             raise ViewError('Check not found', 404)
         return checks.first()
 
-    def _handle_action(self, check, action):
+    def _handle_action(self, action, counter):
         '''
-        Perform the given action on the check.
+        Perform the given action on the counter.
         - Return a message to be sent back in the response, or None.
         - Raises a ViewError if given an invalid action.
         '''
@@ -855,20 +859,20 @@ class ActivityCounterView(View):
             return None
 
         if action == 'incr':
-            check.activity_counter.count += 1
-            check.activity_counter.save()
-            return 'counter incremented to {}'.format(check.activity_counter.count)
+            counter.count += 1
+            counter.save()
+            return 'counter incremented to {}'.format(counter.count)
 
         if action == 'decr':
-            if check.activity_counter.count > 0:
-                check.activity_counter.count -= 1
-                check.activity_counter.save()
-            return 'counter decremented to {}'.format(check.activity_counter.count)
+            if counter.count > 0:
+                counter.count -= 1
+                counter.save()
+            return 'counter decremented to {}'.format(counter.count)
 
         if action == 'reset':
-            if check.activity_counter.count > 0:
-                check.activity_counter.count = 0
-                check.activity_counter.save()
+            if counter.count > 0:
+                counter.count = 0
+                counter.save()
             return 'counter reset to 0'
 
         raise ViewError("invalid action '{}'".format(action), 400)
