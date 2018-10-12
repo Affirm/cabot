@@ -8,7 +8,7 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-URL='http://localhost:5001/api/status-checks/activity-counters?id=1000'
+URL='http://web:5001/api/status-checks/activity-counters?id=1000'
 NUM_REQS=30
 SLEEP_SEC=4
 EXPECTED="\"counter.count\": $NUM_REQS"

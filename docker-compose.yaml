@@ -64,3 +64,11 @@ services:
     command: dockerize -wait tcp://rabbitmq:5672 -timeout 60s
     depends_on:
       - rabbitmq
+
+  test_concurrency:
+    env_file:
+     - conf/development.env
+    image: cabot:web
+    command: ./cabot/cabotapp/tests/scripts/test_concurrent_activity_counters.sh
+    volumes:
+     - .:/code
