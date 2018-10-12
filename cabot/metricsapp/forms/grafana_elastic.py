@@ -1,29 +1,22 @@
 from django import forms
 import json
+
+from cabot.cabotapp.views import GroupedModelForm
 from .grafana import GrafanaStatusCheckForm, GrafanaStatusCheckUpdateForm
 from cabot.metricsapp.models import ElasticsearchStatusCheck
 
+_GROUPS = (
+    ('Basic', ('name', 'active', 'service_set')),
+    ('Thresholds', ('check_type', 'warning_value', 'high_alert_importance', 'high_alert_value')),
+    ('Query', ('queries', 'time_range', 'consecutive_failures', 'retries', 'frequency', 'ignore_final_data_point')),
+    ('Advanced', ('auto_sync', 'use_activity_counter', 'runbook')),
+)
+
 
 class GrafanaElasticsearchStatusCheckForm(GrafanaStatusCheckForm):
-    class Meta:
+    class Meta(GroupedModelForm.Meta):
         model = ElasticsearchStatusCheck
-        fields = [
-            'name',
-            'queries',
-            'active',
-            'auto_sync',
-            'check_type',
-            'warning_value',
-            'high_alert_importance',
-            'high_alert_value',
-            'consecutive_failures',
-            'time_range',
-            'retries',
-            'frequency',
-            'ignore_final_data_point',
-            'use_activity_counter',
-            'runbook',
-        ]
+        grouped_fields = _GROUPS
         widgets = {
             'auto_sync': forms.CheckboxInput()
         }
@@ -40,25 +33,9 @@ class GrafanaElasticsearchStatusCheckForm(GrafanaStatusCheckForm):
 
 
 class GrafanaElasticsearchStatusCheckUpdateForm(GrafanaStatusCheckUpdateForm):
-    class Meta:
+    class Meta(GroupedModelForm.Meta):
         model = ElasticsearchStatusCheck
-        fields = [
-            'name',
-            'queries',
-            'active',
-            'auto_sync',
-            'check_type',
-            'warning_value',
-            'high_alert_importance',
-            'high_alert_value',
-            'consecutive_failures',
-            'time_range',
-            'retries',
-            'frequency',
-            'ignore_final_data_point',
-            'use_activity_counter',
-            'runbook',
-        ]
+        grouped_fields = _GROUPS
         widgets = {
             'auto_sync': forms.CheckboxInput()
         }

@@ -1,3 +1,4 @@
+import six
 from django.template import RequestContext, loader
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
@@ -60,6 +61,46 @@ class LoginRequiredMixin(object):
     @method_decorator(cabot_login_required)
     def dispatch(self, *args, **kwargs):
         return super(LoginRequiredMixin, self).dispatch(*args, **kwargs)
+
+
+class GroupedModelFormMetaMetaclass(type):
+    """
+    Metaclass for django's "Meta" class that sets "fields" to all the fields in Meta.grouped_fields (in the right order)
+    """
+    def __new__(mcs, name, bases, attrs):
+        if 'grouped_fields' in attrs:
+            if 'fields' in attrs:
+                raise Exception('GroupedModelForm: specify either "fields" or "grouped_fields", not both.')
+
+            fields = []
+            for group_name, field_names in attrs['grouped_fields']:
+                fields += field_names
+            attrs['fields'] = fields
+        return super(GroupedModelFormMetaMetaclass, mcs).__new__(mcs, name, bases, attrs)
+
+
+class GroupedModelForm(forms.ModelForm):
+    """
+    Automatically fills in Meta.fields and sets field.group_name based on Meta.grouped_fields.
+    For use with the "group by" Django Templates feature.
+    Usage:
+    1. Have your View subclass GroupedModelForm
+    2. Define "class Meta(GroupedModelForm.Meta):" and fill in 'grouped_fields' instead of 'fields', like so:
+       grouped_fields = (
+         ("group_1", ("field1", "field2")),
+         ("group_2", ("field3", "field4", "field5")),
+         ...
+       )
+    """
+    class Meta(six.with_metaclass(GroupedModelFormMetaMetaclass)):
+        grouped_fields = ()
+
+    def __init__(self, *args, **kwargs):
+        super(GroupedModelForm, self).__init__(*args, **kwargs)
+        if hasattr(self.Meta, 'grouped_fields'):
+            for group_name, field_names in self.Meta.grouped_fields:
+                for field_name in field_names:
+                    self.fields[field_name].group_name = group_name
 
 
 @cabot_login_required
@@ -125,7 +166,7 @@ base_widgets = {
 }
 
 
-class StatusCheckForm(SymmetricalForm):
+class StatusCheckForm(SymmetricalForm, GroupedModelForm):
     symmetrical_fields = ('service_set',)
 
     service_set = forms.ModelMultipleChoiceField(
@@ -142,34 +183,20 @@ class StatusCheckForm(SymmetricalForm):
 
 
 class HttpStatusCheckForm(StatusCheckForm):
-    class Meta:
+    class Meta(GroupedModelForm.Meta):
         model = HttpStatusCheck
-        fields = (
-            'name',
-            'endpoint',
-            'http_method',
-            'username',
-            'password',
-            'http_params',
-            'http_body',
-            'text_match',
-            'header_match',
-            'allow_http_redirects',
-            'status_code',
-            'timeout',
-            'verify_ssl_certificate',
-            'frequency',
-            'importance',
-            'active',
-            'retries',
-            'use_activity_counter',
-            'runbook',
+        grouped_fields = (
+            ('Basic', ('name', 'active', 'importance', 'service_set')),
+            ('Request', ('endpoint', 'frequency', 'retries', 'http_method', 'http_params', 'http_body')),
+            ('Response Validation', ('status_code', 'text_match', 'header_match', 'timeout')),
+            ('Authentication', ('username', 'password')),
+            ('Advanced', ('allow_http_redirects', 'verify_ssl_certificate', 'use_activity_counter', 'runbook')),
         )
         widgets = dict(**base_widgets)
         widgets.update({
             'endpoint': forms.TextInput(attrs={
                 'style': 'width: 100%',
-                'placeholder': 'https://www.arachnys.com',
+                'placeholder': 'https://www.affirm.com',
             }),
             'username': forms.TextInput(attrs={
                 'style': 'width: 30%',
@@ -179,7 +206,7 @@ class HttpStatusCheckForm(StatusCheckForm):
             }),
             'text_match': forms.TextInput(attrs={
                 'style': 'width: 100%',
-                'placeholder': '[Aa]rachnys\s+[Rr]ules',
+                'placeholder': '[Cc]abot\s+[Rr]ules',
             }),
             'status_code': forms.TextInput(attrs={
                 'style': 'width: 20%',
@@ -189,34 +216,23 @@ class HttpStatusCheckForm(StatusCheckForm):
 
 
 class JenkinsStatusCheckForm(StatusCheckForm):
-    class Meta:
+    class Meta(GroupedModelForm.Meta):
         model = JenkinsStatusCheck
-        fields = (
-            'name',
-            'importance',
-            'retries',
-            'max_queued_build_time',
-            'max_build_failures',
-            'use_activity_counter',
-            'runbook',
+        grouped_fields = (
+            ('Basic', ('name', 'active', 'importance', 'service_set')),
+            ('Jenkins', ('max_queued_build_time', 'max_build_failures', 'retries')),
+            ('Advanced', ('use_activity_counter', 'runbook')),
         )
         widgets = dict(**base_widgets)
 
 
 class TCPStatusCheckForm(StatusCheckForm):
-    class Meta:
+    class Meta(GroupedModelForm.Meta):
         model = TCPStatusCheck
-        fields = (
-            'name',
-            'address',
-            'port',
-            'timeout',
-            'frequency',
-            'importance',
-            'active',
-            'retries',
-            'use_activity_counter',
-            'runbook',
+        grouped_fields = (
+            ('Basic', ('name', 'active', 'importance', 'service_set')),
+            ('TCP', ('address', 'port', 'timeout', 'frequency', 'retries')),
+            ('Advanced', ('use_activity_counter', 'runbook')),
         )
         widgets = dict(**base_widgets)
         widgets.update({
@@ -226,23 +242,15 @@ class TCPStatusCheckForm(StatusCheckForm):
         })
 
 
-class ServiceForm(forms.ModelForm):
-    class Meta:
+class ServiceForm(GroupedModelForm):
+    class Meta(GroupedModelForm.Meta):
         model = Service
         template_name = 'service_form.html'
-        fields = (
-            'name',
-            'url',
-            'users_to_notify',
-            'schedules',
-            'status_checks',
-            'alerts',
-            'alerts_enabled',
-            'hipchat_instance',
-            'hipchat_room_id',
-            'mattermost_instance',
-            'mattermost_channel_id',
-            'hackpad_id',
+        grouped_fields = (
+            ('Service', ['name', 'status_checks']),
+            ('Alerts', ['alerts_enabled', 'alerts', 'users_to_notify', 'schedules']),
+            ('Alert Options', ['hipchat_instance', 'hipchat_room_id', 'mattermost_instance', 'mattermost_channel_id']),
+            ('Other', ['url', 'hackpad_id']),
         )
         widgets = {
             'name': forms.TextInput(attrs={'style': 'width: 30%;'}),
@@ -255,13 +263,11 @@ class ServiceForm(forms.ModelForm):
                 'data-rel': 'chosen',
                 'style': 'width: 70%',
             }),
-            'users_to_notify': forms.CheckboxSelectMultiple(),
-            'schedules': forms.CheckboxSelectMultiple(),
-            'hipchat_instances': forms.SelectMultiple(attrs={
+            'users_to_notify': forms.SelectMultiple(attrs={
                 'data-rel': 'chosen',
                 'style': 'width: 70%',
             }),
-            'mattermost_instances': forms.SelectMultiple(attrs={
+            'schedules': forms.SelectMultiple(attrs={
                 'data-rel': 'chosen',
                 'style': 'width: 70%',
             }),
@@ -269,11 +275,10 @@ class ServiceForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        ret = super(ServiceForm, self).__init__(*args, **kwargs)
+        super(ServiceForm, self).__init__(*args, **kwargs)
         self.fields['users_to_notify'].queryset = User.objects.filter(
             is_active=True)
         self.fields['schedules'].queryset = Schedule.objects.all()
-        return ret
 
     def clean_hackpad_id(self):
         value = self.cleaned_data['hackpad_id']
