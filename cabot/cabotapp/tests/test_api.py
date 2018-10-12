@@ -1,15 +1,54 @@
+import threading
+
+from django.test import Client
 from rest_framework import status, HTTP_HEADER_ENCODING
 from rest_framework.reverse import reverse as api_reverse
 import base64
 import json
+
+from rest_framework.test import APITransactionTestCase
+
 from cabot.cabotapp.models import (
     ActivityCounter,
     StatusCheck,
     JenkinsStatusCheck,
     Service,
     clone_model,
-)
+    HttpStatusCheck)
 from .utils import LocalTestCase
+
+
+# from https://www.caktusgroup.com/blog/2009/05/26/testing-django-views-for-concurrency-issues/
+def run_concurrently(times):
+    """
+    Add this decorator to small pieces of code that you want to test
+    concurrently to make sure they don't raise exceptions when run at the
+    same time.  E.g., some Django views that do a SELECT and then a subsequent
+    INSERT might fail when the INSERT assumes that the data has not changed
+    since the SELECT.
+    """
+    def test_concurrently_decorator(test_func):
+        def wrapper(*args, **kwargs):
+            exceptions = []
+
+            def call_test_func():
+                try:
+                    test_func(*args, **kwargs)
+                except Exception, e:
+                    exceptions.append(e)
+                    raise
+
+            threads = []
+            for i in range(times):
+                threads.append(threading.Thread(target=call_test_func))
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            if exceptions:
+                raise Exception('test_concurrently intercepted %s exceptions: %s' % (len(exceptions), exceptions))
+        return wrapper
+    return test_concurrently_decorator
 
 
 class TestAPI(LocalTestCase):
@@ -302,7 +341,15 @@ class TestAPIFiltering(LocalTestCase):
         )
 
 
-class TestActivityCounterAPI(LocalTestCase):
+class TestActivityCounterAPI(APITransactionTestCase):
+    def setUp(self):
+        self.http_check = HttpStatusCheck.objects.create(
+            id=10102,
+            name='Http Check',
+        )
+
+        super(TestActivityCounterAPI, self).setUp()
+
     def _set_activity_counter(self, enabled, count):
         '''Utility function to set the activity counter for the http check'''
         self.http_check.use_activity_counter = enabled
@@ -406,3 +453,20 @@ class TestActivityCounterAPI(LocalTestCase):
         self.http_check.use_activity_counter = True
         self.http_check.save()
         self.assertFalse(self.http_check.should_run())
+
+    def test_counter_incr_concurrent(self):
+        self._set_activity_counter(True, 0)
+        url = '/api/status-checks/activity-counter?id=10102&action=incr'
+
+        @run_concurrently(20)
+        def do_requests():
+            c = Client()
+            c.get(url)
+
+            # manually close DB connection, otherwise it stays open and tests can't terminate cleanly
+            from django.db import connection
+            connection.close()
+        do_requests()
+
+        counter = ActivityCounter.objects.get(status_check=10102)
+        self.assertEqual(counter.count, 20)
