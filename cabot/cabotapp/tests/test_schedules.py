@@ -214,6 +214,7 @@ The schedule <a href="{edit_schedule_url}">Principal</a> has some issues:
 <br/>There are gaps in the schedule (times are UTC):
 <br/>* 2018-08-17 19:00:00 to 2018-08-18 19:00:00 (1d)
 <br/>* 2018-08-19 19:00:00 to 2018-08-20 19:00:00 (1d)
+<br/>If someone is scheduled during these times, make sure they have logged in to Cabot at least once.
 <br/>
 <br/>Click <a href="{edit_schedule_url}">here</a> to review the schedule\'s configuration.
 <br/>If you don\'t want to deal with this right now, you can silence these alerts for \
@@ -248,7 +249,8 @@ The schedule has no fallback officer.
 
 There are gaps in the schedule (times are UTC):
 * 2018-08-17 19:00:00 to 2018-08-18 19:00:00 (1d)
-* 2018-08-19 19:00:00 to 2018-08-20 19:00:00 (1d)\
+* 2018-08-19 19:00:00 to 2018-08-20 19:00:00 (1d)
+If someone is scheduled during these times, make sure they have logged in to Cabot at least once.\
 """
         self.assertEquals(self.schedule.problems.text, problems_str)
 
@@ -364,7 +366,8 @@ There are gaps in the schedule (times are UTC):
 * 2018-08-22 08:00:00 to 2018-08-23 07:00:00 (23h)
 * 2018-08-23 08:00:00 to 2018-08-24 07:00:00 (23h)
 * 2018-08-24 08:00:00 to 2018-08-25 07:00:00 (23h)
-(Plus another 182 gap(s) not listed here.)"""
+(Plus another 182 gap(s) not listed here.)
+If someone is scheduled during these times, make sure they have logged in to Cabot at least once."""
 
         self.assertTrue(fake_send_mail.called)
         self.assertEqual(self.schedule.problems.text, problems)

@@ -109,6 +109,9 @@ def _find_problems(schedule, current_time=None):
         if len(gaps) > max_reported_gaps:
             problems[-1] += "\n(Plus another {} gap(s) not listed here.)".format(len(gaps) - max_reported_gaps)
 
+        problems[-1] += "\nIf someone is scheduled during these times, " \
+                        "make sure they have logged in to Cabot at least once."
+
     return problems
 
 
