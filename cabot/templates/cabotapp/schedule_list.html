@@ -27,7 +27,7 @@
           {{ schedule }}
         </td>
         <td>
-          <a href="{% url "shifts-detail" pk=schedule.id %} title="link">Link</a>
+          <a href="{% url "shifts-detail" pk=schedule.id %}" title="link">Link</a>
         </td>
         <td>
           {% with duty_officers.officers|get_item:schedule as officer %}
