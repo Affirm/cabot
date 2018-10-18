@@ -10,6 +10,7 @@ from elasticsearch_dsl import MultiSearch, Search
 from cabot.metricsapp.api import create_es_client, validate_query
 from cabot.metricsapp import defs
 from .base import MetricsSourceBase, MetricsStatusCheckBase
+from ..utils import interval_str_to_int
 
 
 logger = logging.getLogger(__name__)
@@ -112,26 +113,41 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         for query in queries:
             validate_query(query)
 
-    def get_series(self):
-        """
-        Get the relevant data for a check from Elasticsearch and parse it
-        into a generic format.
-        :param check: the ElasticsearchStatusCheck
-        :return data in the format
-            status:
-            error_message:
-            error_code:
-            raw:
-            data:
-              - series: a.b.c.d
-                datapoints:
-                  - [timestamp, value]
-                  - [timestamp, value]
-              - series: a.b.c.p.q
-                datapoints:
-                  - [timestamp, value]
-                check:
-        """
+    def _get_data_point_frequency(self):
+        '''
+        Examine the `queries` field and determine the shortest frequency, in seconds,
+        of the queries. This is used for filling an empty series with data points.
+        :return: Frequency in seconds, or None
+        :raises: ValueError if no frequency is found
+        '''
+        # TODO: save parsed queries so we don't have to re-parse?
+        freq = None
+        for query in json.loads(self.queries):
+            # Recursively search the query aggregates for the 'date_histogram' interval
+            curr_agg = query['aggs']['agg']
+            while curr_agg is not None:
+                # If the current agg has a date_histogram, return its interval in seconds
+                if 'date_histogram' in curr_agg:
+                    interval_str = curr_agg['date_histogram']['interval']
+                    curr_freq = interval_str_to_int(interval_str)
+                    if freq is None or curr_freq < freq:
+                        freq = curr_freq
+                    curr_agg = None
+                # If the current agg has another agg, search it
+                elif 'aggs' in curr_agg:
+                    curr_agg = curr_agg['aggs']['agg']
+                # Else we're done
+                else:
+                    curr_agg = None
+        if freq is None:
+            raise ValueError("No data point frequency found in query: '{}'".format(self.queries))
+        return freq
+
+    def _get_parsed_data(self):
+        '''
+        Get parsed data from Elasticsearch, without having applied any empty series
+        handler logic on the data, such as filling in points.
+        '''
         # Error will be set to true if we encounter an error
         parsed_data = dict(raw=[], error=False, data=[])
         source = ElasticsearchSource.objects.get(name=self.source.name)
@@ -166,11 +182,6 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
             parsed_data['error_code'] = type(e).__name__
             parsed_data['error_message'] = str(e)
             parsed_data['error'] = True
-
-        # If there's no data, fill in a 0 so the check doesn't fail.
-        # TODO: fill value could be set based on "Stacking & Null value" in Grafana
-        if parsed_data['data'] == []:
-            parsed_data['data'].append(dict(series='no_data_fill_0', datapoints=[[int(time.time()), 0]]))
 
         return parsed_data
 

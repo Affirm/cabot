@@ -3,6 +3,7 @@ import json
 import time
 import copy
 from cabot.cabotapp.models import Service, StatusCheckResult
+import cabot.metricsapp.defs as defs
 
 
 logger = get_task_logger(__name__)
@@ -144,11 +145,19 @@ def run_metrics_check(check):
     # Get the series data. If there was an error, return immediately.
     series = check.get_series()
 
+    # If there was an error fetching metrics, fail
     if series['error'] is True:
         message = series.get('error_message')
         logger.exception('Error fetching metrics: {}: {}'.format(series.get('error_code'), message))
         error = 'Error fetching metric from source: {}'.format(message)
         return StatusCheckResult(check=check, succeeded=False, error=error)
+
+    # If series is empty and empty_series_handler is configured to return success or failure, do so
+    if series['data'] == []:
+        if check.empty_series_handler == defs.EMPTY_SERIES_SUCCEED:
+            return StatusCheckResult(check=check, succeeded=True, error='Succeed on no data')
+        if check.empty_series_handler == defs.EMPTY_SERIES_FAIL:
+            return StatusCheckResult(check=check, succeeded=False, error='Fail on no data')
 
     # Ignore all checks before the following start time
     start_time = time.time() - check.time_range * 60

@@ -8,7 +8,7 @@ from elasticsearch_dsl.response import Response
 from mock import patch
 from cabot.cabotapp.models import Service
 from cabot.metricsapp.api import validate_query
-from cabot.metricsapp.defs import ES_VALIDATION_MSG_PREFIX
+from cabot.metricsapp.defs import ES_VALIDATION_MSG_PREFIX, EMPTY_SERIES_FILL_ALL
 from cabot.metricsapp.models import ElasticsearchSource, ElasticsearchStatusCheck
 
 
@@ -167,12 +167,70 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(len(data), 1)
 
         data = data[0]
-        self.assertEqual(str(data['series']), 'no_data_fill_0')
+        self.assertEqual(str(data['series']), 'no_data_fill_one')
         self.assertEqual(data['datapoints'], [[1491577200, 0]])
 
         result = self.es_check._run()
         self.assertFalse(result.succeeded)
-        self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
+        self.assertEqual(result.error, 'CRITICAL no_data_fill_one: 0.0 not >= 3.0')
+
+    def test_get_data_point_frequency(self):
+        # Query with histogram in the first agg
+        simple_query = \
+            '[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, "query": "some.query"}}, ' \
+            '{"range": {"@timestamp": {"gte": "now-15m"}}}]}}, "aggs": {"agg": {"date_histogram": ' \
+            '{"field": "@timestamp", "interval": "5m", "extended_bounds": {"max": "now", "min": "now-15m"}}, ' \
+            '"aggs": {"percentiles": {"percentiles": {"field": "entry_duration", "percents": ["25"]}}}}}}]'
+        self.es_check.queries = simple_query
+        self.assertEqual(self.es_check._get_data_point_frequency(), 5 * 60)
+
+        # Query with histogram in the second (nested) agg
+        query_with_nested_histogram = \
+            '[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, "query": "test.query"}}, ' \
+            '{"range": {"@timestamp": {"gte": "now-300m"}}}]}}, "aggs": {"agg": {"terms": {"field": "outstanding"}, ' \
+            '"aggs": {"agg": {"date_histogram": {"field": "@timestamp", "interval": "10m", "extended_bounds": ' \
+            '{"max": "now", "min": "now-3h"}}, "aggs": {"sum": {"sum": {"field": "count"}}}}}}}}]'
+        self.es_check.queries = query_with_nested_histogram
+        self.assertEqual(self.es_check._get_data_point_frequency(), 10 * 60)
+
+        # Query without any histogram
+        query_with_no_histogram = \
+            '[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, "query": "test.query"}}, ' \
+            '{"range": {"@timestamp": {"gte": "now-300m"}}}]}}, "aggs": {"agg": {"terms": {"field": "outstanding"}}}}]'
+        self.es_check.queries = query_with_no_histogram
+        with self.assertRaises(ValueError):
+            self.es_check._get_data_point_frequency()
+
+    @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', empty_es_response)
+    @patch('time.time', mock_time)
+    def test_fill_all_points(self):
+        '''Test that we can fill multiple points if ES returns an empty data series'''
+        self.es_check.queries = \
+            '[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, "query": "test.query"}}, ' \
+            '{"range": {"@timestamp": {"gte": "now-60m"}}}]}}, "aggs": {"agg": {"terms": {"field": "outstanding"}, ' \
+            '"aggs": {"agg": {"date_histogram": {"field": "@timestamp", "interval": "10m", "extended_bounds": ' \
+            '{"max": "now", "min": "now-60m"}}, "aggs": {"sum": {"sum": {"field": "count"}}}}}}}}]'
+        self.es_check.time_range = 60
+        self.es_check.empty_series_handler = EMPTY_SERIES_FILL_ALL
+        self.es_check.empty_series_fill_value = 8.0
+
+        # The query should return points with a 10-minute frequency over 1 hour. We therefore expect 7 points.
+        series = self.es_check.get_series()
+        data = series['data'][0]
+        expected_points = [
+            [1491577200, 8.0],
+            [1491576600, 8.0],
+            [1491576000, 8.0],
+            [1491575400, 8.0],
+            [1491574800, 8.0],
+            [1491574200, 8.0],
+            [1491573600, 8.0],
+        ]
+        self.assertEqual(str(data['series']), 'no_data_fill_all')
+        self.assertEqual(data['datapoints'], expected_points)
+
+        result = self.es_check._run()
+        self.assertTrue(result.succeeded)
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_metrics_terms)
     @patch('time.time', mock_time)
@@ -343,12 +401,12 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(len(data), 1)
 
         data = data[0]
-        self.assertEqual(str(data['series']), 'no_data_fill_0')
+        self.assertEqual(str(data['series']), 'no_data_fill_one')
         self.assertEqual(data['datapoints'], [[1491577200, 0]])
 
         result = self.es_check._run()
         self.assertFalse(result.succeeded)
-        self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
+        self.assertEqual(result.error, 'CRITICAL no_data_fill_one: 0.0 not >= 3.0')
 
     def test_adjust_time_range(self):
         # save() should adjust the time range in queries to match the time range field
@@ -404,12 +462,12 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(len(data), 1)
 
         data = data[0]
-        self.assertEqual(str(data['series']), 'no_data_fill_0')
+        self.assertEqual(str(data['series']), 'no_data_fill_one')
         self.assertEqual(data['datapoints'], [[1491577200, 0]])
 
         result = self.es_check._run()
         self.assertFalse(result.succeeded)
-        self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
+        self.assertEqual(result.error, 'CRITICAL no_data_fill_one: 0.0 not >= 3.0')
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_all_but_first_none)
     @patch('time.time', mock_time)

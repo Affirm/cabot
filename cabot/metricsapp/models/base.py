@@ -5,7 +5,8 @@ from cabot.cabotapp.models import Service, StatusCheck
 from cabot.cabotapp.utils import build_absolute_url
 from cabot.metricsapp.api import run_metrics_check
 from cabot.cabotapp.defs import CHECK_TYPES
-from cabot.metricsapp.defs import METRIC_STATUS_TIME_RANGE_DEFAULT
+from cabot.metricsapp import defs
+import time
 
 
 class MetricsSourceBase(models.Model):
@@ -62,7 +63,7 @@ class MetricsStatusCheckBase(StatusCheck):
         help_text='If this expression evaluates to False, the check will fail with an error or critical level alert.'
     )
     time_range = models.IntegerField(
-        default=METRIC_STATUS_TIME_RANGE_DEFAULT,
+        default=defs.METRIC_STATUS_TIME_RANGE_DEFAULT,
         help_text='Time range in minutes the check gathers data for.',
     )
     grafana_panel = models.ForeignKey(
@@ -81,6 +82,19 @@ class MetricsStatusCheckBase(StatusCheck):
         help_text='Number of consecutive data points that must exceed the alert '
                   'threshold before an alert is triggered. Applies to both warning '
                   'and high-alert thresholds.',
+    )
+    empty_series_handler = models.CharField(
+        choices=defs.EMPTY_SERIES_HANDLERS,
+        default='fill_one',
+        max_length=16,
+        help_text='How to handle an empty metrics series. Options are: succeed immediately, fail immediately, fill '
+                  'a single data point, fill all data points. Fill options use the \'empty_series_fill_value\' below.'
+    )
+    empty_series_fill_value = models.FloatField(
+        default=0.0,
+        null=True,
+        blank=True,
+        help_text='Value used to fill in an empty series.'
     )
 
     def _run(self):
@@ -107,7 +121,58 @@ class MetricsStatusCheckBase(StatusCheck):
         :param check: the status check
         :return the parsed data
         """
+        parsed_data = self._get_parsed_data()
+        self._fill_empty_series(parsed_data)
+        return parsed_data
+
+    def _get_data_point_frequency(self):
+        '''
+        Get the frequency of data points in the series
+        :return: Frequency in seconds, or None
+        '''
+        raise NotImplementedError('Subclasses must implement')
+
+    def _get_parsed_data(self):
+        '''
+        To be implemented by subclasses. Should parse raw data from the data source and
+        return it in the format mentioned in `get_series()`.
+        '''
         raise NotImplementedError('MetricsStatusCheckBase has no data source.')
+
+    def _fill_empty_series(self, parsed_data):
+        '''
+        Given a dict of parsed data, if the data series is empty and we are configured to
+        fill in a value, do so.
+        '''
+        # If there's no data, and the empty_series_handler is configured to fill, do so
+        if parsed_data['data'] == []:
+            if self.empty_series_handler == defs.EMPTY_SERIES_FILL_ONE:
+                datapoints = [[int(time.time()), self.empty_series_fill_value]]
+                parsed_data['data'].append(dict(series='no_data_fill_one', datapoints=datapoints))
+            elif self.empty_series_handler == defs.EMPTY_SERIES_FILL_ALL:
+                datapoints = self._get_filled_points()
+                parsed_data['data'].append(dict(series='no_data_fill_all', datapoints=datapoints))
+
+    def _get_filled_points(self):
+        '''
+        Compute and return the list of all points to be filled in when a data series is empty.
+        Assumes the empty_series_method is FILL_ALL and empty_series_fill_value is populated.
+        :return: List of data points.
+        '''
+        # All times in seconds
+        freq = self._get_data_point_frequency()
+        if freq is None or freq <= 0:
+            raise ValueError('Expected positive frequency, got {}'.format(str(freq)))
+        total_time = self.time_range * 60
+        now = int(time.time())
+        last_time = now - (now % freq)
+        curr_time = last_time
+        points = []
+        # Fill points until we have filled the entire time range
+        while last_time - curr_time <= total_time:
+            points.append([curr_time, self.empty_series_fill_value])
+            curr_time -= freq
+        return points
 
     def get_url_for_check(self):
         """Get the url for viewing this check"""

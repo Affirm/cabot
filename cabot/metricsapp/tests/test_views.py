@@ -41,6 +41,8 @@ class TestMetricsReviewChanges(TestCase):
             'retries': 0,
             'frequency': 5,
             'ignore_final_data_point': True,
+            'empty_series_handler': 'fill_one',
+            'empty_series_fill_value': 0.0,
             'use_activity_counter': False,
             'runbook': '',
         }

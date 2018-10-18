@@ -5,6 +5,7 @@ import os
 import yaml
 from cabot.cabotapp.models import Service
 from cabot.metricsapp.models import MetricsStatusCheckBase, MetricsSourceBase
+from cabot.metricsapp import defs
 
 
 def get_content(filename):
@@ -19,6 +20,10 @@ def mock_get_series(*args):
 
 def get_series_error(*args):
     return yaml.load(get_content('metrics_error.yaml'))
+
+
+def mock_get_empty_series(*args):
+    return {'error': False, 'raw': 'rawstuff', 'data': []}
 
 
 def mock_time():
@@ -312,3 +317,57 @@ class TestMultipleThresholds(TestCase):
         # If this fails, we might see:
         # "CRITICAL alert.high_alert_threshold: 2 consecutive points not < 10.0"
         self.assertEqual(result.error, u'WARNING prod.good.data: 2 consecutive points not < 9.0')
+
+
+class TestEmptySeries(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('user')
+        self.source = MetricsSourceBase.objects.create(name='source')
+        self.check = MetricsStatusCheckBase(
+            name='test',
+            created_by=self.user,
+            source=self.source,
+            check_type='<',
+            warning_value=9.0,
+        )
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_fill_single_zero_by_default(self):
+        # _get_parsed_data() does not get filled. We expect an empty array.
+        self.assertEqual(self.check._get_parsed_data()['data'], [])
+        # get_series() is filled
+        expected = [{'datapoints': [[mock_time(), 0.0]], 'series': 'no_data_fill_one'}]
+        self.assertEqual(self.check.get_series()['data'], expected)
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_fill_single_nonzero_point(self):
+        self.check.empty_series_fill_value = 8.0
+        expected = [{'datapoints': [[mock_time(), 8.0]], 'series': 'no_data_fill_one'}]
+        self.assertEqual(self.check.get_series()['data'], expected)
+
+    # test_fill_all_points is found in test_elasticsearch.py, since we require _get_data_point_frequency()
+    # to be defined.
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_immediate_success(self):
+        self.check.empty_series_handler = defs.EMPTY_SERIES_SUCCEED
+        # Points should not be filled in
+        self.assertEqual(self.check.get_series()['data'], [])
+        # The test should succeed
+        result = self.check._run()
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.error, u'Succeed on no data')
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_immediate_failure(self):
+        self.check.empty_series_handler = defs.EMPTY_SERIES_FAIL
+        # Points should not be filled in
+        self.assertEqual(self.check.get_series()['data'], [])
+        # The test should succeed
+        result = self.check._run()
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, u'Fail on no data')

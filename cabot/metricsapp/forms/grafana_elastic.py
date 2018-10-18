@@ -8,7 +8,8 @@ from cabot.metricsapp.models import ElasticsearchStatusCheck
 _GROUPS = (
     ('Basic', ('name', 'active', 'service_set')),
     ('Thresholds', ('check_type', 'warning_value', 'high_alert_importance', 'high_alert_value')),
-    ('Query', ('queries', 'time_range', 'consecutive_failures', 'retries', 'frequency', 'ignore_final_data_point')),
+    ('Query', ('queries', 'time_range', 'consecutive_failures', 'retries', 'frequency', 'ignore_final_data_point',
+               'empty_series_handler', 'empty_series_fill_value')),
     ('Advanced', ('auto_sync', 'use_activity_counter', 'runbook')),
 )
 
