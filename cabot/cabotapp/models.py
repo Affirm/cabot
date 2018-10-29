@@ -240,10 +240,10 @@ class CheckGroupMixin(models.Model):
     # order checks by: critical + failing, error + failing, warning + failing, passing, disabled
     _CHECK_ORDER = "(CASE " \
                    "WHEN calculated_status = '{failing}' AND importance = '{critical}' THEN 1 " \
-                   "WHEN calculated_status = '{failing}' AND importance = '{error}' THEN 2" \
-                   "WHEN calculated_status = '{failing}' AND importance = '{warning}' THEN 3" \
+                   "WHEN calculated_status = '{failing}' AND importance = '{error}' THEN 2 " \
+                   "WHEN calculated_status = '{failing}' AND importance = '{warning}' THEN 3 " \
                    "WHEN active = false THEN 99 " \
-                   "ELSE 4" \
+                   "ELSE 4 " \
                    "END)".format(failing=CALCULATED_FAILING_STATUS,
                                  intermittent=CALCULATED_INTERMITTENT_STATUS,
                                  passing=CALCULATED_PASSING_STATUS,
