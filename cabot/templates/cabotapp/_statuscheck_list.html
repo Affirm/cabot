@@ -48,7 +48,7 @@
           </td>
           <td title="{{ check.calculated_status }}">
             {% if check.active %}
-            <span class="label label-{% if check.calculated_status == 'passing' %}success{% else %}danger{% endif %}">
+            <span class="label label-{% if check.calculated_status == 'passing' %}success{% elif check.calculated_status == 'acked' %}warning{% else %}danger{% endif %}">
               {{ check.calculated_status|capfirst }}
             </span>
             {% else %}

@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import six
 from django.template import RequestContext, loader
 from datetime import datetime, timedelta, date
@@ -19,7 +21,7 @@ from models import (StatusCheck,
                     get_all_duty_officers,
                     get_single_duty_officer,
                     get_all_fallback_officers,
-                    update_shifts, ScheduleProblems)
+                    update_shifts, ScheduleProblems, Acknowledgement)
 
 from tasks import run_status_check as _run_status_check
 from .decorators import cabot_login_required
@@ -911,3 +913,42 @@ class ActivityCounterView(View):
             return 'counter reset to 0'
 
         raise ViewError("invalid action '{}'".format(action), 400)
+
+
+class AckListView(LoginRequiredMixin, ListView):
+    model = Acknowledgement
+    context_object_name = 'acks'
+
+    def get_queryset(self):
+        return Acknowledgement.objects.filter(resolved_at=None).order_by('status_check', '-id').prefetch_related()
+
+    def get_context_data(self, **kwargs):
+        ctx = super(AckListView, self).get_context_data(**kwargs)
+        return ctx
+
+
+class AckCreateView(LoginRequiredMixin, View):
+    @transaction.atomic()
+    def get(self, request, result_ids):
+        # type: (Any, str) -> Any
+        user = request.user if request.user.pk else None  # filter out anonymous user when DISABLE_LOGIN=True
+        result_ids = result_ids.split(',')
+
+        results_by_check = defaultdict(list)
+        for result_id in result_ids:
+            try:
+                result = StatusCheckResult.objects.get(id=int(result_id))
+                results_by_check[result.check_id].append(result)
+            except StatusCheckResult.DoesNotExist:
+                raise ViewError('Could not find StatusCheckResult with id {}'.format(result_id), 400)
+
+        acks = []
+        for check_id, results in results_by_check.items():
+            for result in results:
+                ack = Acknowledgement(created_by=user, status_check=result.check, match_if=Acknowledgement.MATCH_ALL_IN)
+                ack.save()
+                ack.tags.add(*list(result.tags.all()))  # TODO better way?
+                acks.append(ack)
+
+        return json_response({'new_acks_ids': [a.id for a in acks]}, 200, pretty=True)
+        # return reverse('acks')

@@ -80,16 +80,19 @@ class CheckGroupMixin(models.Model):
         abstract = True
 
     PASSING_STATUS = 'PASSING'
+    ACKED_STATUS = 'ACKED'
     WARNING_STATUS = 'WARNING'
     ERROR_STATUS = 'ERROR'
     CRITICAL_STATUS = 'CRITICAL'
 
     CALCULATED_PASSING_STATUS = 'passing'
+    CALCULATED_ACKED_STATUS = 'acked'
     CALCULATED_INTERMITTENT_STATUS = 'intermittent'
     CALCULATED_FAILING_STATUS = 'failing'
 
     STATUSES = (
         (CALCULATED_PASSING_STATUS, CALCULATED_PASSING_STATUS),
+        (CALCULATED_ACKED_STATUS, CALCULATED_ACKED_STATUS),
         (CALCULATED_INTERMITTENT_STATUS, CALCULATED_INTERMITTENT_STATUS),
         (CALCULATED_FAILING_STATUS, CALCULATED_FAILING_STATUS),
     )
@@ -177,13 +180,18 @@ class CheckGroupMixin(models.Model):
         return self.name
 
     def most_severe(self, check_list):
-        failures = [c.importance for c in check_list]
+        # if a check is acked, instead of importance use ACKED_STATUS
+        failures = [c.importance if not c.calculated_status == Service.CALCULATED_ACKED_STATUS
+                    else self.ACKED_STATUS
+                    for c in check_list]
         if self.CRITICAL_STATUS in failures:
             return self.CRITICAL_STATUS
         if self.ERROR_STATUS in failures:
             return self.ERROR_STATUS
         if self.WARNING_STATUS in failures:
             return self.WARNING_STATUS
+        if self.ACKED_STATUS in failures:
+            return self.ACKED_STATUS
         return self.PASSING_STATUS
 
     @property
@@ -207,7 +215,7 @@ class CheckGroupMixin(models.Model):
                     if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.NOTIFICATION_INTERVAL)) \
                             < self.last_alert_sent:
                         return
-                elif self.overall_status in (self.CRITICAL_STATUS, self.ERROR_STATUS):
+                elif self.overall_status in (self.CRITICAL_STATUS, self.ERROR_STATUS, self.ACKED_STATUS):
                     if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.ALERT_INTERVAL)) \
                             < self.last_alert_sent:
                         return
@@ -489,6 +497,7 @@ class StatusCheck(PolymorphicModel):
         next_run_time = self.last_run + timedelta(minutes=self.frequency)
         return timezone.now() > next_run_time
 
+    @transaction.atomic()
     def run(self):
         start = timezone.now()
         try:
@@ -501,10 +510,22 @@ class StatusCheck(PolymorphicModel):
             result = StatusCheckResult(check=self)
             result.error = u'Error in performing check: %s' % (e,)
             result.succeeded = False
+
         finish = timezone.now()
         result.time = start
         result.time_complete = finish
         result.save()
+
+        if result.succeeded:
+            acks = Acknowledgement.get_acks_matching_check(self, at_time=finish)
+            for ack in acks:
+                ack.resolve('check started passing')
+        else:
+            acks = Acknowledgement.get_acks_matching_result(result, at_time=finish)
+            if len(acks) > 0:
+                result.acked = True
+                result.save(update_fields=('acked',))
+
         self.last_run = finish
         self.save()
 
@@ -534,7 +555,13 @@ class StatusCheck(PolymorphicModel):
             if get_success_with_retries(recent_results, self.retries):
                 self.calculated_status = Service.CALCULATED_PASSING_STATUS
             else:
-                self.calculated_status = Service.CALCULATED_FAILING_STATUS
+                last_result = recent_results[0] if recent_results and len(recent_results) > 0 else None
+                if last_result and last_result.acked:
+                    # last result is acked, so we are too
+                    self.calculated_status = Service.CALCULATED_ACKED_STATUS
+                else:
+                    # get_success_with_retries returned False, so we're failing
+                    self.calculated_status = Service.CALCULATED_FAILING_STATUS
             self.cached_health = serialize_recent_results(recent_results)
             try:
                 StatusCheck.objects.get(pk=self.pk)
@@ -862,6 +889,10 @@ class TCPStatusCheck(StatusCheck):
         return result
 
 
+class StatusCheckResultTags(models.Model):  # TODO make this not plural :/
+    value = models.TextField(max_length=1024, blank=False, null=False, db_index=True)
+
+
 class StatusCheckResult(models.Model):
     """
     We use the same StatusCheckResult model for all check types,
@@ -876,6 +907,9 @@ class StatusCheckResult(models.Model):
     raw_data = models.TextField(null=True)
     succeeded = models.BooleanField(default=False)
     error = models.TextField(null=True)
+
+    tags = models.ManyToManyField(StatusCheckResultTags)
+    acked = models.BooleanField(null=False, default=False)
 
     # Jenkins specific
     job_number = models.PositiveIntegerField(null=True)
@@ -962,6 +996,79 @@ class Shift(models.Model):
         if self.deleted:
             deleted = ' (deleted)'
         return "%s: %s to %s%s" % (self.user.username, self.start, self.end, deleted)
+
+
+class Acknowledgement(models.Model):
+    created_at = models.DateTimeField(default=timezone.now)
+    created_by = models.ForeignKey(User, null=True, default=None)
+
+    resolved_at = models.DateTimeField(null=True, default=None)
+    resolved_reason = models.TextField(max_length=255, null=True, blank=False, default=None)
+
+    status_check = models.ForeignKey(StatusCheck, null=False)
+    tags = models.ManyToManyField(StatusCheckResultTags)
+
+    MATCH_EXACT = 'E'
+    MATCH_ALL_IN = 'A'
+    MATCH_CHECK = 'C'
+    MATCH_TYPE_CHOICES = (
+        (MATCH_EXACT, 'result tags exactly match these tags (strict)'),
+        (MATCH_ALL_IN, 'result tags are in this set of tags (recommended)'),
+        (MATCH_CHECK, 'only match check, ignore tags'),
+    )
+    match_if = models.TextField(max_length=1, null=False, blank=False, default=MATCH_ALL_IN, choices=MATCH_TYPE_CHOICES)
+
+    @property
+    def active(self):
+        return self.resolved_at is None
+
+    def matches_result(self, result):
+        # type: (StatusCheckResult) -> bool
+
+        # status_check must match, regardless of match type
+        if result.check_id != self.status_check_id:
+            return False
+
+        if self.match_if == self.MATCH_CHECK:
+            return True
+        elif self.match_if == self.MATCH_ALL_IN:
+            ack_tags = self.tags.values_list('value', flat=True)
+            return all([tag in ack_tags for tag in result.tags.values_list('value', flat=True)])
+        elif self.match_if == self.MATCH_EXACT:
+            # TODO probably a better way to do this...
+            return sorted(self.tags.values_list('value', flat=True)) == \
+                   sorted(result.tags.values_list('value', flat=True))
+
+        raise NotImplementedError()
+
+    @classmethod
+    def get_acks_matching_check(cls, check, at_time=None):
+        # type: (StatusCheck, timezone.datetime) -> List[Acknowledgement]
+        """
+        :param check: check to gather acks for
+        :param at_time: only consider acks that were open at this time; leave None for all currently open acks
+        :returns list of Acknowledgements where ack.
+        """
+        acks = cls.objects.filter(status_check_id=check.id)
+        if at_time:
+            return acks.exclude(created_at__gt=at_time).exclude(resolved_at__lt=at_time)
+        else:
+            return acks.filter(resolved_at=None)  # unresolved acks
+
+    @classmethod
+    def get_acks_matching_result(cls, result, at_time=None):
+        # type: (StatusCheckResult, timezone.datetime) -> List[Acknowledgement]
+        """
+        :param result: result to gather acks for
+        :param at_time: only consider acks that were open at this time; leave None for all currently open acks
+        :returns list of Acknowledgements where ack.matches_result(result) == True
+        """
+        return [a for a in cls.get_acks_matching_check(result.check, at_time) if a.matches_result(result)]
+
+    def resolve(self, reason):
+        self.resolved_at = timezone.now()
+        self.resolved_reason = reason
+        self.save(update_fields=('resolved_at', 'resolved_reason'))
 
 
 def get_duty_officers(schedule, at_time=None):

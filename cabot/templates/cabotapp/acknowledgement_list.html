@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load extra %}
+
+{% block title %}{{ block.super }} - {{ service.name }}{% endblock title %}
+
+{% block content %}
+
+  <div class="row">
+    <div class="col-xs-12">
+      <div class="col-xs-1"><h2><i class="glyphicon glyphicon-check"></i></h2></div>
+      <div class="col-xs-5"><h2><span class="break"></span>Acknowledgements</h2></div>
+      <div class="col-xs-6 text-right"><h2><a href="{# {% url "create-ack" %} #}"><i class="glyphicon glyphicon-plus"></i></a></h2></div>
+    </div>
+  </div>
+  <hr>
+
+  {% if not acks %}
+  <div class="col-xs-11 col-xs-offset-1">No acknowledgements.</div>
+  {% else %}
+
+  {% regroup acks by status_check as ack_groups %}
+  {% for group in ack_groups %}
+  {% with group.grouper as check %}
+  <div class="row">
+    <div class="col-xs-12">
+      <div class="col-xs-1"><h3><i class="fa fa-cog"></i></h3></div>
+      <div class="col-xs-8"><h3>{{ check.name }}</h3></div>
+      <div class="col-xs-3 text-right">
+        <h3>
+          <a href="" class="" title="New ack"><i class="glyphicon glyphicon-plus"></i></a>
+        </h3>
+      </div>
+    </div>
+  </div>
+  <hr>
+
+  {# List of acks under this check #}
+  <div class="row">
+    <div class="col-xs-12">
+        <table class="table bootstrap-datatable datatable">
+          <thead>
+            <tr>
+              <th>Match Type</th>
+              <th>Tags</th>
+              <th>Created by</th>
+              <th>Created at</th>
+              <th></th>  {# for edit/delete buttons #}
+            </tr>
+          </thead>
+          <tbody>
+            {% for ack in group.list %}
+            <tr class="enabled">  {# <- set class to warning for colored row background #}
+              <td title="{{ ack.match_if}}">
+                <span>{{ack.match_if}}</span>
+              </td>
+              <td title="">  {# tags #}
+                <span class="">TAGS GO HERE {# {{ ack.tags.value|join:", " }} #}</span>
+              </td>
+              <td title="">
+                {{ ack.created_by.username }}  {# TODO full name + email here #}
+              </td>
+              <td title="">
+                {{ ack.created_at }}
+              </td>
+              <td class="text-right">
+                <a class="btn btn-xs" href="">
+                  <i class="glyphicon glyphicon-edit" title="Edit ack"></i><span class="break"></span>
+                </a>
+                <a class="btn btn-xs" href="" title="Remove ack">
+                  <i class="glyphicon glyphicon-remove"></i><span class="break"></span>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+  {% endif %}
+{% endblock content %}
+
+{% block js %}
+  {% load compress %}
+  {% load jsonify %}
+  {{ block.super }}
+  {% compress js %}
+    <script type="text/javascript">
+        window.SERVICE_HISTORY = {{ service.recent_snapshots|jsonify }}
+    </script>
+  {% endcompress %}
+{% endblock js %}
