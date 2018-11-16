@@ -237,17 +237,35 @@ class CheckGroupMixin(models.Model):
             s['time'] = time.mktime(s['time'].timetuple())
         return snapshots
 
+    # order checks by: critical + failing, error + failing, warning + failing, passing, disabled
+    _CHECK_ORDER = "(CASE " \
+                   "WHEN calculated_status = '{failing}' AND importance = '{critical}' THEN 1 " \
+                   "WHEN calculated_status = '{failing}' AND importance = '{error}' THEN 2 " \
+                   "WHEN calculated_status = '{failing}' AND importance = '{warning}' THEN 3 " \
+                   "WHEN active = false THEN 99 " \
+                   "ELSE 4 " \
+                   "END)".format(failing=CALCULATED_FAILING_STATUS,
+                                 intermittent=CALCULATED_INTERMITTENT_STATUS,
+                                 passing=CALCULATED_PASSING_STATUS,
+                                 critical=CRITICAL_STATUS,
+                                 error=ERROR_STATUS,
+                                 warning=WARNING_STATUS)
+
+    def _order_checks(self, q):
+        # break ties by name
+        return q.extra(select={'o': self._CHECK_ORDER}, order_by=('o', 'name'))
+
     def http_status_checks(self):
-        return self.status_checks.filter(polymorphic_ctype__model='httpstatuscheck')
+        return self._order_checks(self.status_checks.filter(polymorphic_ctype__model='httpstatuscheck'))
 
     def jenkins_status_checks(self):
-        return self.status_checks.filter(polymorphic_ctype__model='jenkinsstatuscheck')
+        return self._order_checks(self.status_checks.filter(polymorphic_ctype__model='jenkinsstatuscheck'))
 
     def tcp_status_checks(self):
-        return self.status_checks.filter(polymorphic_ctype__model='tcpstatuscheck')
+        return self._order_checks(self.status_checks.filter(polymorphic_ctype__model='tcpstatuscheck'))
 
     def elasticsearch_status_checks(self):
-        return self.status_checks.filter(polymorphic_ctype__model='elasticsearchstatuscheck')
+        return self._order_checks(self.status_checks.filter(polymorphic_ctype__model='elasticsearchstatuscheck'))
 
     def active_http_status_checks(self):
         return self.http_status_checks().filter(active=True)
