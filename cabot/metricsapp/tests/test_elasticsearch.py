@@ -201,6 +201,14 @@ class TestElasticsearchStatusCheck(TestCase):
         with self.assertRaises(ValueError):
             self.es_check._get_data_point_frequency()
 
+        # Query without any aggs
+        query_with_no_aggs = \
+            '[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, "query": "test.query"}}, ' \
+            '{"range": {"@timestamp": {"gte": "now-300m"}}}]}}}]'
+        self.es_check.queries = query_with_no_aggs
+        with self.assertRaises(ValueError):
+            self.es_check._get_data_point_frequency()
+
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', empty_es_response)
     @patch('time.time', mock_time)
     def test_fill_all_points(self):
