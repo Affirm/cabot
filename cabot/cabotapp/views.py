@@ -596,8 +596,38 @@ class ServiceListView(LoginRequiredMixin, ListView):
     model = Service
     context_object_name = 'services'
 
+    # adds 'service.active_checks_count' and 'service.inactive_checks_count' to the services queryset
+    # need raw SQL here because this can't be expressed in django's ORM until at least v1.8...
+    _queryset_extra = {
+        'select': {
+            'active_checks_count':
+                "SELECT COUNT(*)\n"
+                "FROM {statuscheck}\n"
+                "INNER JOIN {service_status_checks} "
+                "ON ({statuscheck}.id = {service_status_checks}.statuscheck_id)\n"
+                "WHERE {statuscheck}.active = TRUE\n"
+                "  AND {service_status_checks}.service_id = {service}.id".format(
+                    statuscheck=StatusCheck._meta.db_table,
+                    service_status_checks=Service.status_checks.through._meta.db_table,
+                    service=Service._meta.db_table,
+                ),
+            'inactive_checks_count':
+                "SELECT COUNT(*)\n"
+                "FROM {statuscheck}\n"
+                "INNER JOIN {service_status_checks} "
+                "ON ({statuscheck}.id = {service_status_checks}.statuscheck_id)\n"
+                "WHERE {statuscheck}.active = FALSE\n"
+                "  AND {service_status_checks}.service_id = {service}.id".format(
+                    statuscheck=StatusCheck._meta.db_table,
+                    service_status_checks=Service.status_checks.through._meta.db_table,
+                    service=Service._meta.db_table,
+                ),
+        }
+    }
+
     def get_queryset(self):
-        return Service.objects.all().order_by('name').prefetch_related('status_checks')
+        # we preload the check counts manually here to avoid an extra 4 DB hits per service in the template
+        return Service.objects.all().order_by('name').extra(**self._queryset_extra)
 
     def get_context_data(self, **kwargs):
         context = super(ServiceListView, self).get_context_data(**kwargs)

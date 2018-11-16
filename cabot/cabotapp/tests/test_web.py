@@ -3,8 +3,8 @@
 from django.core.urlresolvers import reverse
 from django.test.client import Client
 from datetime import timedelta, date
-from cabot.cabotapp.models import Service
-from cabot.cabotapp.views import StatusCheckReportForm
+from cabot.cabotapp.models import Service, HttpStatusCheck
+from cabot.cabotapp.views import StatusCheckReportForm, ServiceListView
 from .utils import LocalTestCase
 
 
@@ -67,3 +67,19 @@ class TestWebInterface(LocalTestCase):
         check = checks[0]
         self.assertEqual(len(check.problems), 1)
         self.assertEqual(check.success_rate, 50)
+
+    def test_services_list(self):
+        """test the services list queryset, since it uses some custom SQL for the active/inactive check counts"""
+        # add a disabled check
+        inactive_check = HttpStatusCheck(active=False)
+        inactive_check.save()
+        self.service.status_checks.add(inactive_check)
+        self.service.save()
+
+        qs = ServiceListView().get_queryset().all()
+        self.assertEquals(len(qs), 1)
+        service = qs[0]
+
+        # check the extra fields are correct
+        self.assertEquals(service.active_checks_count, 3)
+        self.assertEquals(service.inactive_checks_count, 1)

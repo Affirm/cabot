@@ -26,10 +26,10 @@
             <span class="label label-{% if not service.alerts_enabled %}warning{% else %}{% if service.overall_status == service.PASSING_STATUS %}success{% else %}danger{% endif %}{% endif %}">{% if service.alerts_enabled %}{{ service.overall_status|lower|capfirst }}{% else %}Disabled{% endif %}</span>
           </td>
           <td>
-            <span class="label label-{% if service.active_status_checks.all.count > 0 %}{% if service.overall_status != service.PASSING_STATUS %}danger{% else %}success{% endif %}{% else %}default{% endif %}">{{ service.active_status_checks.all.count }}</span>
+            <span class="label label-{% if service.active_checks_count > 0 %}{% if service.overall_status != service.PASSING_STATUS %}danger{% else %}success{% endif %}{% else %}default{% endif %}">{{ service.active_checks_count }}</span>
           </td>
           <td>
-            <span class="label label-{% if service.inactive_status_checks.all.count > 0 %}warning{% else %}default{% endif %}">{{ service.inactive_status_checks.all.count }}</span>
+            <span class="label label-{% if service.inactive_checks_count > 0 %}warning{% else %}default{% endif %}">{{ service.inactive_checks_count }}</span>
           </td>
           <td class="text-right">
             <a class="btn btn-xs" href="{% url "update-service" pk=service.id %}" role="button">
