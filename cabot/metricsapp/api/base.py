@@ -91,49 +91,21 @@ def _get_raw_data_with_thresholds(check, series):
         return series_data
 
 
-def _points_trigger_high_alert(result, series, series_name, datapoints, check):
-    threshold = check.high_alert_value
-    importance = check.high_alert_importance
-    return _points_trigger_alert(result, series, series_name, datapoints, check, threshold, importance)
-
-
-def _points_trigger_warning(result, series, series_name, datapoints, check):
-    threshold = check.warning_value
-    importance = Service.WARNING_STATUS
-    return _points_trigger_alert(result, series, series_name, datapoints, check, threshold, importance)
-
-
-def _points_trigger_alert(result, series, series_name, datapoints, check, threshold, importance):
-    '''
-    Process a set of points, looking to see if they breach the specified threshold
-    for the alert. If so, populate the result object and return True. Otherwise,
-    return False.
-    '''
-    # If there's no threshold set, then ignore
+def _point_triggering_alert(datapoints, check_type, min_consecutive_failures, threshold):
     if threshold is None:
-        return False
+        return None
 
-    # Examine each data point
     consecutive_failures = 0
-
     for point in datapoints:
         timestamp, value = point
-        # If the point fails, increment the consecutive failure count, and
-        # then check if we have enough failed points to return an error.
-        if _point_failure_check(check.check_type, threshold, value):
+        if _point_failure_check(check_type, threshold, value):
             consecutive_failures += 1
-            if consecutive_failures >= check.consecutive_failures:
-                # Set the importance so the check fails at the right level
-                check.importance = importance
-                result.succeeded = False
-                result.error = _get_error_message(check, threshold, importance, series_name, value)
-                result.raw_data = _get_raw_data_with_thresholds(check, series)
-                return True
+            if consecutive_failures >= min_consecutive_failures:
+                return point
         else:
             consecutive_failures = 0
 
-    # No problems found
-    return False
+    return None
 
 
 def run_metrics_check(check):
@@ -150,6 +122,7 @@ def run_metrics_check(check):
         message = series.get('error_message')
         logger.exception('Error fetching metrics: {}: {}'.format(series.get('error_code'), message))
         error = 'Error fetching metric from source: {}'.format(message)
+        # TODO return tags here...
         return StatusCheckResult(check=check, succeeded=False, error=error)
 
     # If the series is empty, apply the empty-series handler
@@ -173,32 +146,35 @@ def run_metrics_check(check):
             return False
         return True
 
-    # We'll populate and return these results objects when we find alerts
-    result = StatusCheckResult(check=check, succeeded=True)
-    warn_result = StatusCheckResult(check=check, succeeded=True)
-
     parsed_series = series['data']
     logger.info('Processing series {}'.format(str(parsed_series)))
 
-    # Process each series
+    # order is important (!)
+    thresholds = [
+        (check.high_alert_importance, check.high_alert_value),
+        (Service.WARNING_STATUS, check.warning_value),
+    ]
+
+    # Process each series, updating result and tags as we go
+    result = StatusCheckResult(check=check, succeeded=True)
+    result.raw_data = _get_raw_data_with_thresholds(check, series)
+    tags = []
+
     for series_data in parsed_series:
         series_name = series_data['series']
         datapoints = list(filter(filter_old_points, series_data['datapoints']))
 
-        # If this series triggers a high alert, return the result immediately
-        if _points_trigger_high_alert(result, series, series_name, datapoints, check):
-            return result
-
-        # If we haven't found a warning yet, check this series for a warning
-        if warn_result.succeeded:
-            _points_trigger_warning(warn_result, series, series_name, datapoints, check)
+        for importance, threshold in thresholds:
+            failing_point = _point_triggering_alert(datapoints, check.check_type, check.consecutive_failures, threshold)
+            if failing_point is not None:
+                tags.append(str(importance.lower()) + ':' + series_name)
+                if result.succeeded:
+                    # record the first, most severe failure
+                    result.succeeded = False
+                    check.importance = importance
+                    result.error = _get_error_message(check, threshold, importance, series_name, failing_point[1])
 
         logger.info('Finished processing series {}'.format(series_name))
 
-    # If we found a warning, return it
-    if not warn_result.succeeded:
-        return warn_result
-
-    # No problems found. Add thresholds and return.
-    result.raw_data = _get_raw_data_with_thresholds(check, series)
+    # TODO return tags here...
     return result
