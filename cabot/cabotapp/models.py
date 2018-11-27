@@ -501,20 +501,24 @@ class StatusCheck(PolymorphicModel):
     def run(self):
         start = timezone.now()
         try:
-            result = self._run()
-        except SoftTimeLimitExceeded as e:
-            result = StatusCheckResult(check=self)
-            result.error = u'Error in performing check: Celery soft time limit exceeded'
-            result.succeeded = False
+            result, tags = self._run()
+        except SoftTimeLimitExceeded:
+            result = StatusCheckResult(check=self, succeeded=False,
+                                       error=u'Error in performing check: Celery soft time limit exceeded')
+            tags = ['celery_timeout']
         except Exception as e:
-            result = StatusCheckResult(check=self)
-            result.error = u'Error in performing check: %s' % (e,)
-            result.succeeded = False
+            result = StatusCheckResult(check=self, succeeded=False, error=u'Error in performing check: %s' % (e,))
+            tags = ['run_error']
 
         finish = timezone.now()
         result.time = start
         result.time_complete = finish
         result.save()
+
+        # would like to do this in bulk, but django won't let me use objects returned from bulk_create()
+        # (even though we know the PKs...)
+        tag_objs = [StatusCheckResultTags.objects.get_or_create(value=t)[0] for t in tags]
+        result.tags.add(*tag_objs)
 
         if result.succeeded:
             acks = Acknowledgement.get_acks_matching_check(self, at_time=finish)
@@ -530,8 +534,9 @@ class StatusCheck(PolymorphicModel):
         self.save()
 
     def _run(self):
+        # type: () -> Tuple[StatusCheckResult, List[str]]
         """
-        Implement on subclasses. Should return a `CheckResult` instance.
+        Implement on subclasses. Should return a `StatusCheckResult` instance and a list of tags.
         """
         raise NotImplementedError('Subclasses should implement')
 
@@ -732,28 +737,28 @@ class HttpStatusCheck(StatusCheck):
             if self.status_code and resp.status_code != int(self.status_code):
                 result.error = u'Wrong code: got %s (expected %s)' % (
                     resp.status_code, int(self.status_code))
-                return result
+                return result, ['status:{}'.format(resp.status_code)]
 
             if self.text_match is not None:
                 if not re.search(self.text_match, resp.content):
                     result.error = u'Failed to find match regex /%s/ in response body' % self.text_match
-                    return result
+                    return result, ['text_match_failed']
 
             if type(header_match) is dict and header_match:
                 for header, match in header_match.iteritems():
                     if header not in resp.headers:
                         result.error = u'Missing response header: %s' % (header)
-                        return result
+                        return result, ['missing_header']
 
                     value = resp.headers[header]
                     if not re.match(match, value):
                         result.error = u'Mismatch in header: %s / %s' % (header, value)
-                        return result
+                        return result, ['unexpected_header']
 
             # Mark it as success. phew!!
             result.succeeded = True
 
-        return result
+        return result, []
 
 
 class JenkinsStatusCheck(StatusCheck):
@@ -797,7 +802,7 @@ class JenkinsStatusCheck(StatusCheck):
             if status['status_code'] == 404:
                 result.error = u'Job %s not found on Jenkins' % self.name
                 result.succeeded = False
-                return result
+                return result, ['job_not_found']
             elif status['status_code'] >= 400:
                 # Will fall through to next block
                 raise Exception(u'returned %s' % status['status_code'])
@@ -807,12 +812,14 @@ class JenkinsStatusCheck(StatusCheck):
             # Ugly to do it here but...
             result.error = u'Error fetching from Jenkins - %s' % e.message
             result.succeeded = False
-            return result
+            return result, ['bad_response']
 
+        tags = []
         if not active:
             # We will fail if the job has been disabled
             result.error = u'Job "%s" disabled on Jenkins' % self.name
             result.succeeded = False
+            tags.append('job_disabled')
         else:
             result.succeeded = True
 
@@ -824,6 +831,7 @@ class JenkinsStatusCheck(StatusCheck):
                         int(status['blocked_build_time']),
                         self.max_queued_build_time,
                     )
+                    tags.append('max_queued_build_time_exceeded')
 
             if result.succeeded and status['consecutive_failures'] is not None:
                 if status['consecutive_failures'] > self.max_build_failures:
@@ -833,16 +841,18 @@ class JenkinsStatusCheck(StatusCheck):
                         int(status['consecutive_failures']),
                         self.max_build_failures,
                     )
+                    tags.append('max_consecutive_failures_exceeded')
                 elif status['consecutive_failures'] < 0:
                     result.succeeded = False
                     result.error = u'Job "%s" Last Completed Build not Found' % (
                         self.name
                     )
+                    tags.append('build_missing')
 
             if not result.succeeded:
                 result.raw_data = status
 
-        return result
+        return result, tags
 
 
 class TCPStatusCheck(StatusCheck):
@@ -875,7 +885,7 @@ class TCPStatusCheck(StatusCheck):
         achieve this, we use the python socket library to connect to the TCP
         service listening on the specified address and port. In other words,
         if this call succeeds (i.e. returns without raising an exception and/or
-        timeing out), we can conclude that the TCP endpoint is valid.
+        timing out), we can conclude that the TCP endpoint is valid.
         """
         result = StatusCheckResult(check=self)
 
@@ -886,11 +896,11 @@ class TCPStatusCheck(StatusCheck):
             result.error = str(e)
             result.succeeded = False
 
-        return result
+        return result, []
 
 
 class StatusCheckResultTags(models.Model):  # TODO make this not plural :/
-    value = models.TextField(max_length=1024, blank=False, null=False, db_index=True)
+    value = models.CharField(max_length=255, blank=False, primary_key=True)
 
 
 class StatusCheckResult(models.Model):

@@ -10,8 +10,7 @@ class Migration(SchemaMigration):
     def forwards(self, orm):
         # Adding model 'StatusCheckResultTags'
         db.create_table(u'cabotapp_statuscheckresulttags', (
-            (u'id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
-            ('value', self.gf('django.db.models.fields.TextField')(max_length=1024, db_index=True)),
+            ('value', self.gf('django.db.models.fields.CharField')(max_length=255, primary_key=True)),
         ))
         db.send_create_signal(u'cabotapp', ['StatusCheckResultTags'])
 
@@ -255,8 +254,7 @@ class Migration(SchemaMigration):
         },
         u'cabotapp.statuscheckresulttags': {
             'Meta': {'object_name': 'StatusCheckResultTags'},
-            u'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
-            'value': ('django.db.models.fields.TextField', [], {'max_length': '1024', 'db_index': 'True'})
+            'value': ('django.db.models.fields.CharField', [], {'max_length': '255', 'primary_key': 'True'})
         },
         u'cabotapp.tcpstatuscheck': {
             'Meta': {'ordering': "['name']", 'object_name': 'TCPStatusCheck', '_ormbases': [u'cabotapp.StatusCheck']},

@@ -122,8 +122,7 @@ def run_metrics_check(check):
         message = series.get('error_message')
         logger.exception('Error fetching metrics: {}: {}'.format(series.get('error_code'), message))
         error = 'Error fetching metric from source: {}'.format(message)
-        # TODO return tags here...
-        return StatusCheckResult(check=check, succeeded=False, error=error)
+        return StatusCheckResult(check=check, succeeded=False, error=error), ['fetch_error']
 
     # If the series is empty, apply the empty-series handler
     if series['data'] == []:
@@ -149,7 +148,7 @@ def run_metrics_check(check):
     parsed_series = series['data']
     logger.info('Processing series {}'.format(str(parsed_series)))
 
-    # order is important (!)
+    # order is important - most severe first, since we report the first error found
     thresholds = [
         (check.high_alert_importance, check.high_alert_value),
         (Service.WARNING_STATUS, check.warning_value),
@@ -160,11 +159,15 @@ def run_metrics_check(check):
     result.raw_data = _get_raw_data_with_thresholds(check, series)
     tags = []
 
-    for series_data in parsed_series:
-        series_name = series_data['series']
-        datapoints = list(filter(filter_old_points, series_data['datapoints']))
-
-        for importance, threshold in thresholds:
+    # loop order is:
+    #   (high_importance, series_1), (high_importance, series_2), ...,
+    #   (warning, series_1), (warning, series_2), ...
+    # and we report the first error encountered as our error
+    # (but continue looping so we accumulate tags)
+    for importance, threshold in thresholds:
+        for series_data in parsed_series:
+            series_name = series_data['series']
+            datapoints = list(filter(filter_old_points, series_data['datapoints']))
             failing_point = _point_triggering_alert(datapoints, check.check_type, check.consecutive_failures, threshold)
             if failing_point is not None:
                 tags.append(str(importance.lower()) + ':' + series_name)
@@ -176,5 +179,4 @@ def run_metrics_check(check):
 
         logger.info('Finished processing series {}'.format(series_name))
 
-    # TODO return tags here...
-    return result
+    return result, tags

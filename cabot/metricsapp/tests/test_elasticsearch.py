@@ -146,7 +146,7 @@ class TestElasticsearchStatusCheck(TestCase):
                                               [1491573600, 4.4642857142857]])
 
         # Test check result
-        result = self.es_check._run()
+        result, tags = self.es_check._run()
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
 
@@ -170,7 +170,7 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(str(data['series']), 'no_data_fill_0')
         self.assertEqual(data['datapoints'], [[1491577200, 0]])
 
-        result = self.es_check._run()
+        result, tags = self.es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
 
@@ -204,7 +204,7 @@ class TestElasticsearchStatusCheck(TestCase):
                                                  [1491573600, 17.297]])
 
         # Test check result
-        result = self.es_check._run()
+        result, tags = self.es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEquals(result.error, 'CRITICAL maroon.max: 18.3 not < 18.0')
         self.assertEqual(self.es_check.importance, Service.CRITICAL_STATUS)
@@ -329,7 +329,7 @@ class TestElasticsearchStatusCheck(TestCase):
                                               [1491570000, 4.51913477537437], [1491573600, 4.4642857142857]])
 
         # Test check result
-        result = self.es_check._run()
+        result, tags = self.es_check._run()
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
 
@@ -346,7 +346,7 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(str(data['series']), 'no_data_fill_0')
         self.assertEqual(data['datapoints'], [[1491577200, 0]])
 
-        result = self.es_check._run()
+        result, tags = self.es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
 
@@ -407,7 +407,7 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(str(data['series']), 'no_data_fill_0')
         self.assertEqual(data['datapoints'], [[1491577200, 0]])
 
-        result = self.es_check._run()
+        result, tags = self.es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
 
