@@ -730,6 +730,7 @@ class HttpStatusCheck(StatusCheck):
         except requests.RequestException as e:
             result.error = u'Request error occurred: %s' % (e.message,)
             result.succeeded = False
+            return result, [type(e).__name__]
         else:
             result.raw_data = resp.content
             result.succeeded = False
@@ -901,6 +902,9 @@ class TCPStatusCheck(StatusCheck):
 
 class StatusCheckResultTags(models.Model):  # TODO make this not plural :/
     value = models.CharField(max_length=255, blank=False, primary_key=True)
+
+    def __unicode__(self):
+        return self.value
 
 
 class StatusCheckResult(models.Model):
@@ -1078,6 +1082,11 @@ class Acknowledgement(models.Model):
     def resolve(self, reason):
         self.resolved_at = timezone.now()
         self.resolved_reason = reason
+        self.save(update_fields=('resolved_at', 'resolved_reason'))
+
+    def reopen(self):
+        self.resolved_at = None
+        self.resolved_reason = None
         self.save(update_fields=('resolved_at', 'resolved_reason'))
 
 

@@ -1,6 +1,8 @@
 from collections import defaultdict
 
 import six
+from django.core.handlers.wsgi import WSGIRequest
+from django.shortcuts import render
 from django.template import RequestContext, loader
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
@@ -476,6 +478,11 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'check'
     template_name = 'cabotapp/statuscheck_detail.html'
 
+    def get_context_data(self, **kwargs):
+        ctx = super(StatusCheckDetailView, self).get_context_data(**kwargs)
+        ctx['show_tags'] = self.request.GET.get('show_tags', False)
+        return ctx
+
     def render_to_response(self, context, *args, **kwargs):
         if context is None:
             context = {}
@@ -924,10 +931,12 @@ class AckListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super(AckListView, self).get_context_data(**kwargs)
+        threshold = timezone.now() - timezone.timedelta(days=7)
+        ctx['resolved_acks'] = Acknowledgement.objects.filter(resolved_at__gte=threshold).order_by('-resolved_at')[:12]
         return ctx
 
 
-class AckCreateView(LoginRequiredMixin, View):
+class AckCreateForResultsView(LoginRequiredMixin, View):
     @transaction.atomic()
     def get(self, request, result_ids):
         # type: (Any, str) -> Any
@@ -947,8 +956,100 @@ class AckCreateView(LoginRequiredMixin, View):
             for result in results:
                 ack = Acknowledgement(created_by=user, status_check=result.check, match_if=Acknowledgement.MATCH_ALL_IN)
                 ack.save()
-                ack.tags.add(*list(result.tags.all()))  # TODO better way?
+                ack.tags.add(*list(result.tags.all()))
                 acks.append(ack)
 
         return json_response({'new_acks_ids': [a.id for a in acks]}, 200, pretty=True)
         # return reverse('acks')
+
+
+class AckForm(GroupedModelForm):
+    class Meta(GroupedModelForm.Meta):
+        model = Acknowledgement
+        grouped_fields = (
+            ('Filter', ('status_check', 'match_if', 'tags')),
+        )
+        widgets = {
+            'status_check': forms.Select(attrs={
+                'data-rel': 'chosen',
+                'style': 'width: 70%',
+            }),
+            'tags': forms.SelectMultiple(attrs={
+                'data-rel': 'chosen',
+                'style': 'width: 70%',
+            }),
+            'match_if': forms.RadioSelect(),
+            'created_by': forms.Select(attrs={
+                'data-rel': 'chosen',
+                'disabled': True,
+                'style': 'width: 70%',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super(AckForm, self).__init__(*args, **kwargs)
+        self.fields['tags'].required = False
+
+
+class AckCreateView(LoginRequiredMixin, CreateView):
+    form_class = AckForm
+    template_name = 'cabotapp/acknowledgement_form.html'
+
+    def get_success_url(self):
+        return reverse('check', kwargs={'pk': self.object.status_check.pk})
+
+    def get_initial(self):
+        result_id = int(self.request.GET.get('result_id', '0'))
+        check_id = int(self.request.GET.get('check_id', '0'))
+        if result_id and check_id:
+            raise ViewError('specify result_id or check_id, not both', 400)
+
+        result = StatusCheckResult.objects.get(id=result_id) if result_id else None
+        if check_id:
+            check = StatusCheck.objects.get(id=check_id)
+        elif result:
+            check = result.check
+        else:
+            check = None
+
+        return {
+            'status_check': check,
+            'tags': result.tags.all() if result else None,
+            'match_if': Acknowledgement.MATCH_CHECK if not result else Acknowledgement.MATCH_ALL_IN
+        }
+
+    def form_valid(self, form):
+        if not self.request.POST.get('accept'):
+            # create a form with the original data so we re-render old fields
+            # original_form = self.form_class(initial=form.initial, instance=self.object)
+            context = self.get_context_data()
+            context['form'] = form
+            context['accept'] = True
+            return render(self.request, self.template_name, context)
+
+        # else preview accepted, continue as usual
+        return super(AckCreateView, self).form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super(AckCreateView, self).get_context_data(**kwargs)
+        return context
+
+
+class AckResolveView(LoginRequiredMixin, View):
+    @transaction.atomic()
+    def get(self, request, pk, **kwargs):
+        ack = Acknowledgement.objects.get(pk=int(pk))
+
+        user = self.request.user.username if self.request.user.pk else None
+        username = user.username if user else 'anonymous user'
+        ack.resolve('resolved by {} through web UI'.format(username))
+
+        return HttpResponseRedirect(reverse('acks'))
+
+
+class AckReopenView(LoginRequiredMixin, View):
+    @transaction.atomic()
+    def get(self, request, pk, **kwargs):
+        ack = Acknowledgement.objects.get(pk=int(pk))
+        ack.reopen()
+        return HttpResponseRedirect(reverse('acks'))
