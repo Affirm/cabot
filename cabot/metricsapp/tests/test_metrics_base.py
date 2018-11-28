@@ -327,9 +327,9 @@ class TestEmptySeries(TestCase):
             name='test',
             created_by=self.user,
             source=self.source,
-            check_type='<',
-            warning_value=9.0,
-            high_alert_value=10,
+            check_type='>',
+            warning_value=10,
+            high_alert_value=5,
             high_alert_importance=Service.CRITICAL_STATUS,
         )
 
@@ -341,6 +341,10 @@ class TestEmptySeries(TestCase):
         # get_series() is filled
         expected = [{'datapoints': [[mock_time(), 0.0]], 'series': 'no_data_fill_0'}]
         self.assertEqual(self.check.get_series()['data'], expected)
+        # The test should fail
+        result = self.check._run()
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, u'CRITICAL no_data_fill_0: 0.0 not > 5.0')
         self.assertEqual(self.check.importance, Service.CRITICAL_STATUS)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
@@ -360,7 +364,7 @@ class TestEmptySeries(TestCase):
         self.check.on_empty_series = defs.ON_EMPTY_SERIES_WARN
         # Points should not be filled in
         self.assertEqual(self.check.get_series()['data'], [])
-        # The test should succeed
+        # The test should warn
         result = self.check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING: no data')
@@ -372,7 +376,7 @@ class TestEmptySeries(TestCase):
         self.check.on_empty_series = defs.ON_EMPTY_SERIES_FAIL
         # Points should not be filled in
         self.assertEqual(self.check.get_series()['data'], [])
-        # The test should succeed
+        # The test should fail
         result = self.check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL: no data')
