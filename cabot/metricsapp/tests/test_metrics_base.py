@@ -376,7 +376,14 @@ class TestEmptySeries(TestCase):
         self.check.on_empty_series = defs.ON_EMPTY_SERIES_FAIL
         # Points should not be filled in
         self.assertEqual(self.check.get_series()['data'], [])
-        # The test should fail
+        # The test should fail and respect the high_alert_importance (ERROR here)
+        self.check.high_alert_importance = Service.ERROR_STATUS
+        result = self.check._run()
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, u'ERROR: no data')
+        self.assertEqual(self.check.importance, Service.ERROR_STATUS)
+        # This time it should fail with CRITICAL
+        self.check.high_alert_importance = Service.CRITICAL_STATUS
         result = self.check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL: no data')

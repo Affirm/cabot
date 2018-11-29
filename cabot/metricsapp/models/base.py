@@ -88,7 +88,7 @@ class MetricsStatusCheckBase(StatusCheck):
         default=defs.ON_EMPTY_SERIES_FILL_ZERO,
         max_length=16,
         help_text='Action to take if the series is empty. Options are: pass, warn, or fail immediately, '
-                  'or insert a single data point with value zero (default, for backwards compatibility).'
+                  'or insert a single data point with value zero.'
     )
 
     def _run(self):
