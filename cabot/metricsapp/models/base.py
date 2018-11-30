@@ -5,7 +5,8 @@ from cabot.cabotapp.models import Service, StatusCheck
 from cabot.cabotapp.utils import build_absolute_url
 from cabot.metricsapp.api import run_metrics_check
 from cabot.cabotapp.defs import CHECK_TYPES
-from cabot.metricsapp.defs import METRIC_STATUS_TIME_RANGE_DEFAULT
+from cabot.metricsapp import defs
+import time
 
 
 class MetricsSourceBase(models.Model):
@@ -62,7 +63,7 @@ class MetricsStatusCheckBase(StatusCheck):
         help_text='If this expression evaluates to False, the check will fail with an error or critical level alert.'
     )
     time_range = models.IntegerField(
-        default=METRIC_STATUS_TIME_RANGE_DEFAULT,
+        default=defs.METRIC_STATUS_TIME_RANGE_DEFAULT,
         help_text='Time range in minutes the check gathers data for.',
     )
     grafana_panel = models.ForeignKey(
@@ -82,6 +83,13 @@ class MetricsStatusCheckBase(StatusCheck):
                   'threshold before an alert is triggered. Applies to both warning '
                   'and high-alert thresholds.',
     )
+    on_empty_series = models.CharField(
+        choices=defs.ON_EMPTY_SERIES_OPTIONS,
+        default=defs.ON_EMPTY_SERIES_FILL_ZERO,
+        max_length=16,
+        help_text='Action to take if the series is empty. Options are: pass, warn, or fail immediately, '
+                  'or insert a single data point with value zero.'
+    )
 
     def _run(self):
         """Run a status check"""
@@ -89,25 +97,42 @@ class MetricsStatusCheckBase(StatusCheck):
 
     def get_series(self):
         """
-        Implemented by subclasses.
-        Parse raw data from a data source into the format
-        status:
-        error_message:
-        error_code:
-        raw:
-        # Parsed data
-        data:
-          - series: a.b.c.d
-            datapoints:
-              - [timestamp, value]
-              - [timestamp, value]
-          - series: a.b.c.p.q
-            datapoints:
-              - [timestamp, value]
+        Fetches time series data, optionally fills it (if configured to do so via the on_empty_series field),
+        and returns the series.
         :param check: the status check
-        :return the parsed data
+        :return the time series data
         """
+        series = self._get_parsed_data()
+        self._fill_parsed_data(series)
+        return series
+
+    def _get_parsed_data(self):
+        '''
+        To be implemented by subclasses. Parse the raw data from a data source into the format:
+
+            status:
+            error_message:
+            error_code:
+            raw:
+            # Parsed data
+            data:
+              - series: a.b.c.d
+                datapoints:
+                  - [timestamp, value]
+                  - [timestamp, value]
+              - series: a.b.c.p.q
+                datapoints:
+                  - [timestamp, value]
+
+        :return: the parsed data
+        '''
         raise NotImplementedError('MetricsStatusCheckBase has no data source.')
+
+    def _fill_parsed_data(self, series):
+        '''Given the parsed series data, if it is empty and should be filled, fill it.'''
+        if series['data'] == []:
+            if self.on_empty_series == defs.ON_EMPTY_SERIES_FILL_ZERO:
+                series['data'].append(dict(series='no_data_fill_0', datapoints=[[int(time.time()), 0]]))
 
     def get_url_for_check(self):
         """Get the url for viewing this check"""

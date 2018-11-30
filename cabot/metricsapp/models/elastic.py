@@ -112,26 +112,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         for query in queries:
             validate_query(query)
 
-    def get_series(self):
-        """
-        Get the relevant data for a check from Elasticsearch and parse it
-        into a generic format.
-        :param check: the ElasticsearchStatusCheck
-        :return data in the format
-            status:
-            error_message:
-            error_code:
-            raw:
-            data:
-              - series: a.b.c.d
-                datapoints:
-                  - [timestamp, value]
-                  - [timestamp, value]
-              - series: a.b.c.p.q
-                datapoints:
-                  - [timestamp, value]
-                check:
-        """
+    def _get_parsed_data(self):
         # Error will be set to true if we encounter an error
         parsed_data = dict(raw=[], error=False, data=[])
         source = ElasticsearchSource.objects.get(name=self.source.name)
@@ -166,11 +147,6 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
             parsed_data['error_code'] = type(e).__name__
             parsed_data['error_message'] = str(e)
             parsed_data['error'] = True
-
-        # If there's no data, fill in a 0 so the check doesn't fail.
-        # TODO: fill value could be set based on "Stacking & Null value" in Grafana
-        if parsed_data['data'] == []:
-            parsed_data['data'].append(dict(series='no_data_fill_0', datapoints=[[int(time.time()), 0]]))
 
         return parsed_data
 

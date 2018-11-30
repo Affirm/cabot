@@ -6,10 +6,31 @@ from .grafana import GrafanaStatusCheckForm, GrafanaStatusCheckUpdateForm
 from cabot.metricsapp.models import ElasticsearchStatusCheck
 
 _GROUPS = (
-    ('Basic', ('name', 'active', 'service_set')),
-    ('Thresholds', ('check_type', 'warning_value', 'high_alert_importance', 'high_alert_value')),
-    ('Query', ('queries', 'time_range', 'consecutive_failures', 'retries', 'frequency', 'ignore_final_data_point')),
-    ('Advanced', ('auto_sync', 'use_activity_counter', 'runbook')),
+    ('Basic', (
+        'name',
+        'active',
+        'service_set',
+    )),
+    ('Thresholds', (
+        'check_type',
+        'warning_value',
+        'high_alert_importance',
+        'high_alert_value',
+    )),
+    ('Query', (
+        'queries',
+        'time_range',
+        'consecutive_failures',
+        'retries',
+        'frequency',
+        'ignore_final_data_point',
+        'on_empty_series',
+    )),
+    ('Advanced', (
+        'auto_sync',
+        'use_activity_counter',
+        'runbook',
+    )),
 )
 
 
