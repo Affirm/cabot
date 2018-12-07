@@ -8,7 +8,7 @@ from celery.task import task
 from django.core.mail import EmailMessage
 from django.core.urlresolvers import reverse
 
-from cabot.cabotapp.models import Schedule
+from cabot.cabotapp.models import Schedule, Acknowledgement
 from cabot.cabotapp.schedule_validation import update_schedule_problems
 from cabot.cabotapp.utils import build_absolute_url
 from cabot.celery.celery_queue_config import STATUS_CHECK_TO_QUEUE
@@ -224,3 +224,14 @@ def send_schedule_problems_email(schedule_id):
                             recipient_list=recipients)
         except Exception as e:
             logger.exception('Error sending schedule problems email: {}'.format(e))
+
+
+@task(ignore_result=True)
+def close_expired_acknowledgements():
+    now = timezone.now()
+
+    # loop over open checks where expire_at >= now
+    print("closing at {}".format(now))
+    for ack in Acknowledgement.objects.filter(closed_at__isnull=True, expire_at__lte=now):
+        print("CLOSING")
+        ack.close('expired')

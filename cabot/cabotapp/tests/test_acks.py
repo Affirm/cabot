@@ -1,6 +1,8 @@
 from django.core.urlresolvers import reverse
 from mock import patch, Mock
 from django.utils import timezone
+
+from cabot.cabotapp import tasks
 from cabot.cabotapp.models import Acknowledgement, StatusCheckResult, StatusCheckResultTags
 from .utils import LocalTestCase, fake_http_404_response, fake_http_200_response, patch_field_default
 
@@ -70,6 +72,89 @@ class TestAcks(LocalTestCase):
         result = self.pass_http_check()
         self.assertFalse(result.acked)
         self.assertEquals(self.http_check.calculated_status, 'passing')
+
+    def test_ack_close_after_successes(self):
+        self.fail_http_check()
+
+        ack = Acknowledgement(status_check=self.http_check, match_if=Acknowledgement.MATCH_CHECK,
+                              close_after_successes=3)
+        ack.save()
+
+        # ack should still be open after 1 success
+        result = self.pass_http_check()
+        self.assertFalse(result.acked)
+        self.assertTrue(Acknowledgement.objects.filter(pk=ack.pk, closed_at__isnull=True).exists())
+
+        # if we fail now it should ack
+        result = self.fail_http_check()
+        self.assertTrue(result.acked)
+
+        # ack should still be open after 2 successes
+        result = self.pass_http_check()
+        self.assertFalse(result.acked)
+        result = self.pass_http_check()
+        self.assertFalse(result.acked)
+        self.assertTrue(Acknowledgement.objects.filter(pk=ack.pk, closed_at__isnull=True).exists())
+
+        # ack should get closed after 3 consecutive successes
+        result = self.pass_http_check()
+        self.assertFalse(result.acked)
+        self.assertFalse(Acknowledgement.objects.filter(pk=ack.pk, closed_at__isnull=True).exists())
+
+        # check should fail now
+        result = self.fail_http_check()
+        self.assertFalse(result.acked)
+        self.assertEqual(self.http_check.calculated_status, 'failing')
+
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_ack_expires(self, fake_now):
+        fake_now.return_value = timezone.datetime(2018, 12, 2, 0, 3, 54, 598552, tzinfo=timezone.utc)
+
+        # must specify created_at because of django black magic relating to defaults
+        ack = Acknowledgement(status_check=self.http_check, match_if=Acknowledgement.MATCH_CHECK,
+                              created_at=fake_now(), expire_at=fake_now()+timezone.timedelta(hours=4))
+        ack.save()
+
+        self.assertEqual(list(Acknowledgement.get_acks_matching_check(self.http_check)), [ack])
+
+        result = self.fail_http_check()
+        self.assertTrue(result.acked)
+
+        # move 5 hours ahead
+        fake_now.return_value = fake_now() + timezone.timedelta(hours=5)
+
+        # should filter out expired acknowledgements, even if they haven't been closed by the periodic task
+        result = self.fail_http_check()
+        self.assertFalse(result.acked)
+
+        # periodic task should clean them up
+        with patch('cabot.cabotapp.tasks.timezone.now', fake_now):
+            tasks.close_expired_acknowledgements()
+        self.assertFalse(Acknowledgement.objects.filter(pk=ack.pk, closed_at__isnull=True).exists())  # should be closed
+
+        result = self.fail_http_check()
+        self.assertFalse(result.acked)
+
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_ack_expire_at_cleanup_filter(self, fake_now):
+        fake_now.return_value = timezone.datetime(2018, 12, 2, 0, 3, 54, 598552, tzinfo=timezone.utc)
+
+        ack = Acknowledgement(status_check=self.http_check, match_if=Acknowledgement.MATCH_CHECK,
+                              created_at=fake_now(), expire_at=fake_now()+timezone.timedelta(hours=4))
+        ack.save()
+
+        ack_not_yet = Acknowledgement(status_check=self.http_check, match_if=Acknowledgement.MATCH_CHECK,
+                                      created_at=fake_now(), expire_at=fake_now()+timezone.timedelta(hours=8))
+        ack_not_yet.save()
+
+        # move 5 hours ahead
+        # periodic task should clean first ack up
+        fake_now.return_value = fake_now() + timezone.timedelta(hours=5)
+        with patch('cabot.cabotapp.tasks.timezone.now', fake_now):
+            tasks.close_expired_acknowledgements()
+
+        self.assertFalse(Acknowledgement.objects.filter(pk=ack.pk, closed_at__isnull=True).exists())
+        self.assertTrue(Acknowledgement.objects.filter(pk=ack_not_yet.pk, closed_at__isnull=True).exists())
 
     def test_service_acked_status(self):
         self.pass_http_check()

@@ -521,9 +521,7 @@ class StatusCheck(PolymorphicModel):
         result.tags.add(*tag_objs)
 
         if result.succeeded:
-            acks = Acknowledgement.get_acks_matching_check(self, at_time=finish)
-            for ack in acks:
-                ack.resolve('check started passing')
+            Acknowledgement.close_succeeding_acks(check=self, at_time=finish)
         else:
             acks = Acknowledgement.get_acks_matching_result(result, at_time=finish)
             if len(acks) > 0:
@@ -1012,12 +1010,9 @@ class Shift(models.Model):
         return "%s: %s to %s%s" % (self.user.username, self.start, self.end, deleted)
 
 
-class Acknowledgement(models.Model):
-    created_at = models.DateTimeField(default=timezone.now)
-    created_by = models.ForeignKey(User, null=True, default=None)
-
-    resolved_at = models.DateTimeField(null=True, default=None)
-    resolved_reason = models.TextField(max_length=255, null=True, blank=False, default=None)
+class ResultFilter(models.Model):
+    class Meta:
+        abstract = True
 
     status_check = models.ForeignKey(StatusCheck, null=False)
     tags = models.ManyToManyField(StatusCheckResultTags)
@@ -1031,10 +1026,6 @@ class Acknowledgement(models.Model):
         (MATCH_CHECK, 'only match check, ignore tags'),
     )
     match_if = models.TextField(max_length=1, null=False, blank=False, default=MATCH_ALL_IN, choices=MATCH_TYPE_CHOICES)
-
-    @property
-    def active(self):
-        return self.resolved_at is None
 
     def matches_result(self, result):
         # type: (StatusCheckResult) -> bool
@@ -1055,23 +1046,39 @@ class Acknowledgement(models.Model):
 
         raise NotImplementedError()
 
+
+class Acknowledgement(ResultFilter):
+    created_at = models.DateTimeField(default=timezone.now)
+    created_by = models.ForeignKey(User, null=True, default=None)
+
+    # if 'closed_at' is set, the ack is considered 'closed'
+    closed_at = models.DateTimeField(null=True, default=None)
+    closed_reason = models.TextField(max_length=255, null=True, blank=False, default=None)
+
+    expire_at = models.DateTimeField(null=True, default=None,
+                                     help_text='After this time the acknowledgement will be automatically closed and '
+                                               'alerts will resume, even if the check is still failing. Leave blank '
+                                               'to disable.')
+    close_after_successes = models.PositiveIntegerField(null=True, default=1,
+                                                        help_text='After this many consecutive successful runs the '
+                                                                  'acknowledgement will be automatically closed. Enter '
+                                                                  '0 to disable.')
+
     @classmethod
     def get_acks_matching_check(cls, check, at_time=None):
         # type: (StatusCheck, timezone.datetime) -> List[Acknowledgement]
         """
         :param check: check to gather acks for
-        :param at_time: only consider acks that were open at this time; leave None for all currently open acks
+        :param at_time: only consider acks that were open at this time; leave as None to use timezone.now().
         :returns list of Acknowledgements where ack.
         """
+        at_time = at_time or timezone.now()
         acks = cls.objects.filter(status_check_id=check.id)
-        if at_time:
-            return acks.exclude(created_at__gt=at_time).exclude(resolved_at__lt=at_time)
-        else:
-            return acks.filter(resolved_at=None)  # unresolved acks
+        return acks.exclude(created_at__gt=at_time).exclude(closed_at__lte=at_time).exclude(expire_at__lte=at_time)
 
     @classmethod
     def get_acks_matching_result(cls, result, at_time=None):
-        # type: (StatusCheckResult, timezone.datetime) -> List[Acknowledgement]
+        # type: (StatusCheckResult, Union[timezone.datetime, None]) -> List[Acknowledgement]
         """
         :param result: result to gather acks for
         :param at_time: only consider acks that were open at this time; leave None for all currently open acks
@@ -1079,15 +1086,44 @@ class Acknowledgement(models.Model):
         """
         return [a for a in cls.get_acks_matching_check(result.check, at_time) if a.matches_result(result)]
 
-    def resolve(self, reason):
-        self.resolved_at = timezone.now()
-        self.resolved_reason = reason
-        self.save(update_fields=('resolved_at', 'resolved_reason'))
+    @classmethod
+    def close_succeeding_acks(cls, check, at_time=None):
+        # type: (StatusCheck, Union[timezone.datetime, None]) -> None
+        """
+        This function closes acks that have hit their close_after_successes threshold.
+        This should be called after a StatusCheck saves a new StatusCheckResult (including its tags!).
+        It technically only needs to be called after a check succeeds, but it's idempotent - you can call it whenever.
+        :param check: StatusCheck to update acks for.
+        :param at_time: Time to pass into get_acks_matching_check. Leave as None to use timezone.now().
+        """
+        for ack in cls.get_acks_matching_check(check, at_time=at_time):
+            if ack.close_after_successes:
+                # get last n results for our check, regardless of status
+                results = StatusCheckResult.objects.filter(check=ack.status_check)\
+                              .order_by('-time_complete', '-id').only('succeeded')[:ack.close_after_successes]
 
-    def reopen(self):
-        self.resolved_at = None
-        self.resolved_reason = None
-        self.save(update_fields=('resolved_at', 'resolved_reason'))
+                # now filter down to the results that succeeded
+                results = [r for r in results if r.succeeded]
+
+                # if we hit our threshold, this check should expire
+                if len(results) >= ack.close_after_successes:
+                    reason = 'check passed {} times'.format(len(results)) if len(results) != 1 else 'check passed'
+                    ack.close(reason)
+
+    def close(self, reason):
+        # type: (str) -> None
+        self.closed_at = timezone.now()
+        self.closed_reason = reason
+        self.save(update_fields=('closed_at', 'closed_reason'))
+
+    def clone(self, created_by):
+        # type: (Union[User, None]) -> Acknowledgement
+        ack = Acknowledgement(status_check=self.status_check, match_if=self.match_if, created_by=created_by,
+                              expire_at=timezone.now() + (self.expire_at - self.created_at) if self.expire_at else None,
+                              close_after_successes=self.close_after_successes)
+        ack.save()
+        ack.tags.add(*self.tags.all())
+        return ack
 
 
 def get_duty_officers(schedule, at_time=None):

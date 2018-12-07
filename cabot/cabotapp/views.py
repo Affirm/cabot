@@ -927,12 +927,12 @@ class AckListView(LoginRequiredMixin, ListView):
     context_object_name = 'acks'
 
     def get_queryset(self):
-        return Acknowledgement.objects.filter(resolved_at=None).order_by('status_check', '-id').prefetch_related()
+        return Acknowledgement.objects.filter(closed_at=None).order_by('status_check', '-id').prefetch_related()
 
     def get_context_data(self, **kwargs):
         ctx = super(AckListView, self).get_context_data(**kwargs)
         threshold = timezone.now() - timezone.timedelta(days=7)
-        ctx['resolved_acks'] = Acknowledgement.objects.filter(resolved_at__gte=threshold).order_by('-resolved_at')[:12]
+        ctx['closed_acks'] = Acknowledgement.objects.filter(closed_at__gte=threshold).order_by('-closed_at')[:12]
         return ctx
 
 
@@ -968,6 +968,7 @@ class AckForm(GroupedModelForm):
         model = Acknowledgement
         grouped_fields = (
             ('Filter', ('status_check', 'match_if', 'tags')),
+            ('Duration', ('expire_at', 'close_after_successes'))
         )
         widgets = {
             'status_check': forms.Select(attrs={
@@ -988,7 +989,7 @@ class AckForm(GroupedModelForm):
 
     def __init__(self, *args, **kwargs):
         super(AckForm, self).__init__(*args, **kwargs)
-        self.fields['tags'].required = False
+        self.fields['tags'].required = False  # tags list can be blank
 
 
 class AckCreateView(LoginRequiredMixin, CreateView):
@@ -1035,14 +1036,14 @@ class AckCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
-class AckResolveView(LoginRequiredMixin, View):
+class AckCloseView(LoginRequiredMixin, View):
     @transaction.atomic()
     def get(self, request, pk, **kwargs):
         ack = Acknowledgement.objects.get(pk=int(pk))
 
-        user = self.request.user.username if self.request.user.pk else None
+        user = request.user.username if request.user.pk else None
         username = user.username if user else 'anonymous user'
-        ack.resolve('resolved by {} through web UI'.format(username))
+        ack.close('closed by {} through web'.format(username))
 
         return HttpResponseRedirect(reverse('acks'))
 
@@ -1051,5 +1052,5 @@ class AckReopenView(LoginRequiredMixin, View):
     @transaction.atomic()
     def get(self, request, pk, **kwargs):
         ack = Acknowledgement.objects.get(pk=int(pk))
-        ack.reopen()
+        ack.clone(created_by=request.user)
         return HttpResponseRedirect(reverse('acks'))

@@ -29,7 +29,7 @@ from cabot.cabotapp.views import (
     AckListView,
     AckCreateForResultsView,
     AckCreateView,
-    AckResolveView,
+    AckCloseView,
     AckReopenView,
 )
 
@@ -170,9 +170,9 @@ urlpatterns = patterns(
     url(r'^acks/create$',
         view=AckCreateView.as_view(),
         name='create-ack'),
-    url(r'^acks/resolve/(?P<pk>\d+)$',
-        view=AckResolveView.as_view(),
-        name='resolve-ack'),
+    url(r'^acks/close/(?P<pk>\d+)$',
+        view=AckCloseView.as_view(),
+        name='close-ack'),
     url(r'^acks/reopen/(?P<pk>\d+)$',
         view=AckReopenView.as_view(),
         name='reopen-ack'),

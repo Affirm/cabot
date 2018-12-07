@@ -69,7 +69,7 @@ a.link-anchor {
                 <a class="btn btn-xs" href="">
                   <i class="glyphicon glyphicon-edit" title="Edit ack"></i><span class="break"></span>
                 </a>
-                <a class="btn btn-xs" href="{% url 'resolve-ack' pk=ack.pk %}" title="Resolve">
+                <a class="btn btn-xs" href="{% url 'close-ack' pk=ack.pk %}" title="Close">
                   <i class="glyphicon glyphicon-ok"></i><span class="break"></span>
                 </a>
               </td>
@@ -85,17 +85,17 @@ a.link-anchor {
   {% endfor %}
 
 
-  {# recently resolved acks #}
+  {# recently closed acks #}
   <br/><br/>
   <div class="row">
     <div class="col-xs-12">
       <div class="col-xs-1"><h2><i class="glyphicon glyphicon-check"></i></h2></div>
-      <div class="col-xs-11"><h2><span class="break"></span>Resolved Acknowledgements</h2></div>
+      <div class="col-xs-11"><h2><span class="break"></span>Closed Acknowledgements</h2></div>
     </div>
   </div>
   <hr>
 
-  {% if resolved_acks %}
+  {% if closed_acks %}
     <div class="row">
       <div class="col-xs-12">
         <table class="table bootstrap-datatable datatable">
@@ -104,13 +104,13 @@ a.link-anchor {
             <th>Check</th>
             <th>Created by</th>
             <th>Created at</th>
-            <th>Resolved at</th>
+            <th>Closed at</th>
             <th>Reason</th>
-            <th></th>  {# for reopen #}
+            <th></th>  {# for clone #}
           </tr>
           </thead>
           <tbody>
-          {% for ack in resolved_acks %}
+          {% for ack in closed_acks %}
             <tr class="enabled">
               <td title="{{ ack.match_if }} on {{ ack.tags.all|join:", " }}">
                 <a href="{% url 'check' pk=ack.status_check.pk %}">{{ack.status_check.name}}</a>
@@ -122,14 +122,14 @@ a.link-anchor {
                 {{ ack.created_at }}
               </td>
               <td title="">
-                {{ ack.resolved_at }}
+                {{ ack.closed_at }}
               </td>
               <td title="">
-                {{ ack.resolved_reason }}
+                {{ ack.closed_reason }}
               </td>
               <td title="">
                 <a class="btn btn-xs" href="{% url 'reopen-ack' pk=ack.pk %}">
-                  <i class="glyphicon glyphicon-open" title="Reopen"></i><span class="break"></span>
+                  <i class="glyphicon glyphicon-copy" title="Reopen"></i><span class="break"></span>
                 </a>
               </td>
             </tr>
@@ -139,7 +139,7 @@ a.link-anchor {
       </div>
     </div>
   {% else %}
-    <div class="col-xs-11 col-xs-offset-1">No recently resolved acknowledgements.</div>
+    <div class="col-xs-11 col-xs-offset-1">No recently closed acknowledgements.</div>
   {% endif %}
 {% endblock content %}
 
