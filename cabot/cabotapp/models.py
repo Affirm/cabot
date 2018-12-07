@@ -1057,8 +1057,7 @@ class Acknowledgement(ResultFilter):
 
     expire_at = models.DateTimeField(null=True, default=None,
                                      help_text='After this time the acknowledgement will be automatically closed and '
-                                               'alerts will resume, even if the check is still failing. Leave blank '
-                                               'to disable.')
+                                               'alerts will resume, even if the check is still failing.')
     close_after_successes = models.PositiveIntegerField(null=True, default=1,
                                                         help_text='After this many consecutive successful runs the '
                                                                   'acknowledgement will be automatically closed. Enter '

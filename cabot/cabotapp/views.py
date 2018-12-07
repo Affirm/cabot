@@ -481,6 +481,7 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super(StatusCheckDetailView, self).get_context_data(**kwargs)
         ctx['show_tags'] = self.request.GET.get('show_tags', False)
+        ctx['expire_after_hours'] = [2, 4, 8, 24]
         return ctx
 
     def render_to_response(self, context, *args, **kwargs):
@@ -963,6 +964,30 @@ class AckCreateForResultsView(LoginRequiredMixin, View):
         # return reverse('acks')
 
 
+class TimeFromNowField(forms.Select):
+    """DateTime field that lets the user choose from a predetermined set of times from now()"""
+    def __init__(self, times, message_format=None, choices=[], *args, **kwargs):
+        message_format = message_format or (lambda t: '{} hour{} from now'.format(t, 's' if t != 1 else ''))
+        choices += [(t, message_format(t)) for t in times]
+        kwargs['choices'] = choices
+        super(TimeFromNowField, self).__init__(*args, **kwargs)
+
+    def value_from_datadict(self, data, files, name):
+        value = data[name]
+        choice_values = [c[0] for c in self.choices]
+        if value in choice_values:
+            return value
+
+        try:
+            hours = int(data[name])
+        except ValueError:
+            return 'invalid-datetime'
+
+        if hours not in choice_values:
+            return 'invalid-datetime'
+        return timezone.now() + timezone.timedelta(hours=hours)
+
+
 class AckForm(GroupedModelForm):
     class Meta(GroupedModelForm.Meta):
         model = Acknowledgement
@@ -985,11 +1010,19 @@ class AckForm(GroupedModelForm):
                 'disabled': True,
                 'style': 'width: 70%',
             }),
+            'expire_at': TimeFromNowField(times=[1, 2, 4, 8, 12, 24],
+                                          choices=[('', 'Never (dangerous!)')],
+                                          attrs={
+                'data-rel': 'chosen',
+                'style': 'width: 70%',
+            }),
         }
 
     def __init__(self, *args, **kwargs):
         super(AckForm, self).__init__(*args, **kwargs)
         self.fields['tags'].required = False  # tags list can be blank
+        self.fields['expire_at'].required = False  # expire_at can be blank
+        self.fields['close_after_successes'].required = False  # close_after_successes can be blank
 
 
 class AckCreateView(LoginRequiredMixin, CreateView):
@@ -1016,20 +1049,9 @@ class AckCreateView(LoginRequiredMixin, CreateView):
         return {
             'status_check': check,
             'tags': result.tags.all() if result else None,
-            'match_if': Acknowledgement.MATCH_CHECK if not result else Acknowledgement.MATCH_ALL_IN
+            'match_if': Acknowledgement.MATCH_CHECK if not result else Acknowledgement.MATCH_ALL_IN,
+            'expire_at': self.request.GET.get('expire_after_hours', None)
         }
-
-    def form_valid(self, form):
-        if not self.request.POST.get('accept'):
-            # create a form with the original data so we re-render old fields
-            # original_form = self.form_class(initial=form.initial, instance=self.object)
-            context = self.get_context_data()
-            context['form'] = form
-            context['accept'] = True
-            return render(self.request, self.template_name, context)
-
-        # else preview accepted, continue as usual
-        return super(AckCreateView, self).form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super(AckCreateView, self).get_context_data(**kwargs)
@@ -1052,5 +1074,6 @@ class AckReopenView(LoginRequiredMixin, View):
     @transaction.atomic()
     def get(self, request, pk, **kwargs):
         ack = Acknowledgement.objects.get(pk=int(pk))
-        ack.clone(created_by=request.user)
+        user = request.user if request.user.pk else None  # None if anonymous user
+        ack.clone(created_by=user)
         return HttpResponseRedirect(reverse('acks'))

@@ -47,23 +47,38 @@ a.link-anchor {
               <th>Tags</th>
               <th>Created by</th>
               <th>Created at</th>
+              <th>Expires</th>
               <th></th>  {# for edit/delete buttons #}
             </tr>
           </thead>
           <tbody>
             {% for ack in group.list %}
             <tr class="enabled">  {# <- set class to warning for colored row background #}
-              <td title="{{ ack.match_if}}">
+              <td>
                 <span>{{ack.match_if}}</span>
               </td>
-              <td title="">
+              <td>
                 <span class="">{{ ack.tags.all|join:", " }}</span>
               </td>
-              <td title="">
+              <td>
                 {{ ack.created_by.username|default:'Anonymous User' }}  {# TODO full name + email here #}
               </td>
-              <td title="">
+              <td>
                 {{ ack.created_at }}
+              </td>
+              <td>
+                {# this is ugly as hell because there are no array literals in django templates :| #}
+                {% if not ack.expire_at and not ack.close_after_successes %}
+                  <i>never</i>
+                {% else %}
+                  {% if ack.expire_at %}
+                    at {{ ack.expire_at }}
+                  {% endif %}
+                  {% if ack.expire_at and ack.close_after_successes %}or{% endif %}
+                  {% if ack.close_after_successes %}
+                    after {{ ack.close_after_successes }} success{% if ack.close_after_successes > 1 %}es{% endif %}
+                  {% endif %}
+                {% endif %}
               </td>
               <td class="text-right">
                 <a class="btn btn-xs" href="">
@@ -129,7 +144,7 @@ a.link-anchor {
               </td>
               <td title="">
                 <a class="btn btn-xs" href="{% url 'reopen-ack' pk=ack.pk %}">
-                  <i class="glyphicon glyphicon-copy" title="Reopen"></i><span class="break"></span>
+                  <i class="glyphicon glyphicon-open" title="Reopen"></i><span class="break"></span>
                 </a>
               </td>
             </tr>

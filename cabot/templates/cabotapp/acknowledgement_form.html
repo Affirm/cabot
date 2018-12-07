@@ -13,15 +13,9 @@
   <div class="col-xs-12">
     <div class="form-group">
       <div class="col-xs-6 col-xs-offset-2">
-        <button type="submit" class="btn btn-primary">{% if accept %}Submit{% else %}Preview{% endif %}</button>
-        {% if check %}
-        <a href="{% url 'check' pk=form.status_check.pk %}" class="btn">Back to check</a>
-        {% endif %}
+        <button type="submit" class="btn btn-primary">{% if not ack.id %}Create{% else %}Save{% endif %}</button>
       </div>
     </div>
   </div>
-
-  {# this is what makes the submission (to the same endpoint) actually update the DB #}
-  <div class="hidden"><input id="accept" name="accept" type="checkbox" checked="{% if accept %}checked{% endif %}" /></div>
 </form>
 {% endblock %}
