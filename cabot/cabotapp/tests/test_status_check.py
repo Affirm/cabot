@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from cabot.cabotapp import tasks
-from mock import patch
+from mock import patch, call
 from cabot.cabotapp.models import HttpStatusCheck, Service, clone_model, ActivityCounter
 from cabot.cabotapp.tasks import update_service, update_all_services
 from .utils import (
@@ -17,7 +17,6 @@ from .utils import (
     fake_http_404_response,
     fake_tcp_success,
     fake_tcp_failure,
-    fake_run_status_check,
     throws_timeout,
 )
 
@@ -239,10 +238,15 @@ class TestStatusCheck(LocalTestCase):
         self.assertEqual(new.endpoint, old.endpoint)
         self.assertEqual(new.status_code, old.status_code)
 
-    @patch('cabot.cabotapp.tasks.run_status_check', fake_run_status_check)
-    def test_run_all(self):
+    @patch('cabot.cabotapp.tasks.run_status_check')
+    def test_run_all(self, mock_run_status_check):
         tasks.run_all_checks()
-        # TODO: what does this even do?
+        mock_run_status_check.assert_has_calls([
+            call.apply_async((10102,), queue='normal_checks'),
+            call.apply_async((10101,), queue='normal_checks'),
+            call.apply_async((10104,), queue='normal_checks'),
+            call.apply_async((10103,), queue='normal_checks'),
+        ])
 
     def test_check_should_run_if_never_run_before(self):
         self.assertEqual(self.http_check.last_run, None)

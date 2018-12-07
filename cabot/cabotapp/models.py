@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
+from django.core.validators import MaxValueValidator
 from django.db import models, transaction
 from polymorphic import PolymorphicModel
 
@@ -441,6 +442,13 @@ class StatusCheck(PolymorphicModel):
         help_text='Number of successive failures permitted before check will be marked as failed. '
                   'Default is 0, i.e. fail on first failure.'
     )
+    run_delay = models.PositiveIntegerField(
+        default=0,
+        validators=[MaxValueValidator(60)],
+        help_text='Minutes to delay running the check, between 0-60. Only for checks using activity counters. '
+                  'A run delay can alleviate race conditions between an activity-counted check first running, '
+                  'and metrics being available.'
+    )
     created_by = models.ForeignKey(User, null=True)
     calculated_status = models.CharField(
         max_length=50, choices=Service.STATUSES, default=Service.CALCULATED_PASSING_STATUS, blank=True)
@@ -473,13 +481,42 @@ class StatusCheck(PolymorphicModel):
     def should_run(self):
         '''Returns true if the check should run, false otherwise.'''
 
-        # Do not run if the activity counter is enabled and zero.
-        # - If the DB entry does not exist, we assume a value of zero.
+        # Handle special cases for activity-counted checks, which may have run delays
         if self.use_activity_counter:
+            # If the counter value is zero, don't run
             counters = ActivityCounter.objects.filter(status_check=self)
             if len(counters) == 0 or counters[0].count <= 0:
                 logger.info("Skipping check '{}', activity counter is zero".format(self.name))
                 return False
+
+            counter = counters[0]
+
+            # last_enabled may be None when this change is first deployed. Set it to now and log a warning.
+            if counter.last_enabled is None:
+                counter.last_enabled = timezone.now()
+                counter.save()
+                logger.warning("activity_counter id={} last_enabled is None, setting to now".format(counter.id))
+
+            # Compute the window during which checks may run, as the last_enable/disabled times,
+            # plus the run-delay
+            counter = counters[0]
+            mins_delay = timedelta(minutes=self.run_delay)
+
+            window_start = counter.last_enabled + mins_delay
+            window_end = (counter.last_disabled + mins_delay) if counter.last_disabled else None
+
+            # Check if the current time falls within the time window.
+            now = timezone.now()
+
+            # Window is in the future
+            if now < window_start:
+                return False
+
+            # Window is in the past
+            if window_end and window_end > window_start and now > window_end:
+                return False
+
+            # At this point the check can run if it hasn't run within the frequency
 
         # Run if we haven't run at all
         if not self.last_run:

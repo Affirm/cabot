@@ -5,7 +5,7 @@ from rest_framework import status, HTTP_HEADER_ENCODING
 from rest_framework.reverse import reverse as api_reverse
 import base64
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from mock import patch
 
 from rest_framework.test import APITransactionTestCase
@@ -351,6 +351,7 @@ class TestActivityCounterAPI(APITransactionTestCase):
         self.http_check = HttpStatusCheck.objects.create(
             id=10102,
             name='Http Check',
+            frequency=5,
         )
         super(TestActivityCounterAPI, self).setUp()
 
@@ -364,6 +365,10 @@ class TestActivityCounterAPI(APITransactionTestCase):
             last_enabled=(None if count == 0 else self.LAST_ENABLED_TIME),
             last_disabled=None,
         )
+
+    def _get_activity_counter(self):
+        'Return the activity counter for the http check. Will look it up in the DB.'
+        return ActivityCounter.objects.get(status_check=self.http_check,)
 
     def test_counter_get(self):
         self._set_activity_counter(True, 0)
@@ -483,6 +488,74 @@ class TestActivityCounterAPI(APITransactionTestCase):
     def test_check_should_not_run_when_activity_counter_zero(self):
         self._set_activity_counter(True, 0)
         self.assertFalse(self.http_check.should_run())
+
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_check_should_run_with_delay(self, mock_now):
+        # Use the following times:
+        #
+        # - last_enabled  = T+0
+        # - last_disabled = T+60
+        # - run_delay     = 30 mins
+        #
+        # The check should thus run between T+30 and T+90
+        self._set_activity_counter(True, 1)
+        self.http_check.run_delay = 30
+        self.http_check.save()
+        counter = self._get_activity_counter()
+
+        # Assume it is 15 mins after check was enabled. Check should not run right now.
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=15)
+        self.assertFalse(self.http_check.should_run())
+
+        # Check should run if now >= run_delay (30 minutes)
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=30)
+        self.assertTrue(self.http_check.should_run())
+
+        # Now assume the check ran recently. It shouldn't run again until the frequency is up.
+        self.http_check.last_run = counter.last_enabled + timedelta(minutes=31)
+        self.http_check.save()
+
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=32)
+        self.assertFalse(self.http_check.should_run())
+
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=37)
+        self.assertTrue(self.http_check.should_run())
+
+        # Finally, set a last_disabled time as last_enabled + 60. The check should not
+        # run if after the disabled time (last_enabled + 90).
+        counter.last_disabled = counter.last_enabled + timedelta(minutes=60)
+        counter.save()
+
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=89)
+        self.assertTrue(self.http_check.should_run())
+
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=91)
+        self.assertFalse(self.http_check.should_run())
+
+    def test_check_should_run_should_set_last_enabled_if_null(self):
+        # Create the activity_counter
+        self._set_activity_counter(False, 0)
+        counter = self._get_activity_counter()
+
+        # Make sure last_enabled is None
+        self.assertIsNone(counter.last_enabled)
+
+        # Because use_activity_counter is False, should_run() will not set last_enabled
+        check.should_run()
+        self.assertIsNone(counter.last_enabled)
+
+        # Enable activity counters. Because the count is zero, we still will not set last_enabled
+        self.http_check.use_activity_counter = True
+        self.http_check.save()
+        self.assertEqual(counter.count, 0)
+        check.should_run()
+        self.assertIsNone(counter.last_enabled)
+
+        # Once count is positive and we need last_enabled, it'll be set
+        counter.count = 4
+        counter.save()
+        check.should_run()
+        self.assertIsNotNone(counter.last_enabled)
 
     def test_check_should_not_run_when_activity_counter_missing(self):
         # Set use_activity_counter=True, but do NOT create the actual activity
