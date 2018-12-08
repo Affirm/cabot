@@ -31,14 +31,17 @@ class TestAcks(LocalTestCase):
         return self.http_check.last_result()
 
     def test_create_ack_for_result(self):
-        # TODO test tags here
         result = self.fail_http_check()
         self.assertFalse(result.succeeded)
         self.assertFalse(result.acked)
 
-        resp = self.client.get(reverse('create-ack-for-results', kwargs={'result_ids': result.id}))
-        self.assertEquals(resp.status_code, 200)
+        # test create ack page pre-filled with result id
+        url = '{}?result_id={}'.format(reverse('create-ack'), result.id)
+        data = self.client.get(url).context['form'].initial  # the data to post is what's pre-filled
+        resp = self.client.post(url, data=data)  # post it
+        self.assertEquals(resp.status_code, 302)
 
+        # make sure it created the ack we expect
         ack = Acknowledgement.objects.get(status_check=self.http_check)
         self.assertEquals(ack.created_by_id, self.user.id)
         self.assertTrue(ack.matches_result(result))
@@ -50,8 +53,10 @@ class TestAcks(LocalTestCase):
         self.assertFalse(result.succeeded)
         self.assertFalse(result.acked)
 
-        resp = self.client.get(reverse('create-ack-for-results', kwargs={'result_ids': result.id}))
-        self.assertEquals(resp.status_code, 200)
+        url = '{}?result_id={}'.format(reverse('create-ack'), result.id)
+        data = self.client.get(url).context['form'].initial  # the data to post is what's pre-filled
+        resp = self.client.post(url, data=data)  # post it
+        self.assertEquals(resp.status_code, 302)
 
         # run the check again
         result = self.fail_http_check()

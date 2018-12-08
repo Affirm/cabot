@@ -937,33 +937,6 @@ class AckListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class AckCreateForResultsView(LoginRequiredMixin, View):
-    @transaction.atomic()
-    def get(self, request, result_ids):
-        # type: (Any, str) -> Any
-        user = request.user if request.user.pk else None  # filter out anonymous user when DISABLE_LOGIN=True
-        result_ids = result_ids.split(',')
-
-        results_by_check = defaultdict(list)
-        for result_id in result_ids:
-            try:
-                result = StatusCheckResult.objects.get(id=int(result_id))
-                results_by_check[result.check_id].append(result)
-            except StatusCheckResult.DoesNotExist:
-                raise ViewError('Could not find StatusCheckResult with id {}'.format(result_id), 400)
-
-        acks = []
-        for check_id, results in results_by_check.items():
-            for result in results:
-                ack = Acknowledgement(created_by=user, status_check=result.check, match_if=Acknowledgement.MATCH_ALL_IN)
-                ack.save()
-                ack.tags.add(*list(result.tags.all()))
-                acks.append(ack)
-
-        return json_response({'new_acks_ids': [a.id for a in acks]}, 200, pretty=True)
-        # return reverse('acks')
-
-
 class TimeFromNowField(forms.Select):
     """DateTime field that lets the user choose from a predetermined set of times from now()"""
     def __init__(self, times, message_format=None, choices=[], *args, **kwargs):
@@ -973,13 +946,13 @@ class TimeFromNowField(forms.Select):
         super(TimeFromNowField, self).__init__(*args, **kwargs)
 
     def value_from_datadict(self, data, files, name):
-        value = data[name]
+        value = data.get(name, '')
         choice_values = [c[0] for c in self.choices]
         if value in choice_values:
             return value
 
         try:
-            hours = int(data[name])
+            hours = int(value)
         except ValueError:
             return 'invalid-datetime'
 
@@ -1030,7 +1003,7 @@ class AckCreateView(LoginRequiredMixin, CreateView):
     template_name = 'cabotapp/acknowledgement_form.html'
 
     def get_success_url(self):
-        return reverse('check', kwargs={'pk': self.object.status_check.pk})
+        return '{}#check-{}'.format(reverse('acks'), self.object.status_check.id)
 
     def get_initial(self):
         result_id = int(self.request.GET.get('result_id', '0'))
@@ -1047,11 +1020,17 @@ class AckCreateView(LoginRequiredMixin, CreateView):
             check = None
 
         return {
-            'status_check': check,
+            'status_check': check.pk,
             'tags': result.tags.all() if result else None,
             'match_if': Acknowledgement.MATCH_CHECK if not result else Acknowledgement.MATCH_ALL_IN,
-            'expire_at': self.request.GET.get('expire_after_hours', None)
+            'expire_at': self.request.GET.get('expire_after_hours', '')
         }
+
+    def form_valid(self, form):
+        if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
+            form.instance.created_by = self.request.user
+
+        return super(AckCreateView, self).form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super(AckCreateView, self).get_context_data(**kwargs)

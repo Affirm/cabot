@@ -27,7 +27,6 @@ from cabot.cabotapp.views import (
     ScheduleDeleteView,
     ScheduleSnoozeWarningsView,
     AckListView,
-    AckCreateForResultsView,
     AckCreateView,
     AckCloseView,
     AckReopenView,
@@ -237,10 +236,6 @@ urlpatterns = patterns(
     url(r'^api/status-checks/activity-counter(/?)',
         view=ActivityCounterView.as_view(),
         name='activity-counter'),
-
-    url(r'^api/acks/create_for_results/(?P<result_ids>(\d+,)*(\d+),?)',
-        view=AckCreateForResultsView.as_view(),
-        name='create-ack-for-results'),
 
     # Comment below line to disable browsable rest api
     url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
