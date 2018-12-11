@@ -1026,9 +1026,14 @@ class AckCreateView(LoginRequiredMixin, CreateView):
             'expire_at': self.request.GET.get('expire_after_hours', '4')  # default to expiring after 4 hours
         }
 
+    @transaction.atomic()
     def form_valid(self, form):
         if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
             form.instance.created_by = self.request.user
+
+        # only allow one open ack per status check
+        for ack in Acknowledgement.objects.filter(status_check=form.instance.status_check, closed_at=None):
+            ack.close('options changed')
 
         return super(AckCreateView, self).form_valid(form)
 
@@ -1052,6 +1057,10 @@ class AckCloseView(LoginRequiredMixin, View):
 class AckReopenView(LoginRequiredMixin, View):
     @transaction.atomic()
     def get(self, request, pk, **kwargs):
+        # only allow one open ack per status check
+        for ack in Acknowledgement.objects.filter(status_check=form.instance.status_check, closed_at=None):
+            ack.close('options changed')
+
         ack = Acknowledgement.objects.get(pk=int(pk))
         user = request.user if request.user.pk else None  # None if anonymous user
         ack.clone(created_by=user)
