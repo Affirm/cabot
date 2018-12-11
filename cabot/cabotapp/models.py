@@ -1017,11 +1017,9 @@ class ResultFilter(models.Model):
     status_check = models.ForeignKey(StatusCheck, null=False)
     tags = models.ManyToManyField(StatusCheckResultTags)
 
-    MATCH_EXACT = 'E'
     MATCH_ALL_IN = 'A'
     MATCH_CHECK = 'C'
     MATCH_TYPE_CHOICES = (
-        (MATCH_EXACT, 'result tags exactly match these tags (strict)'),
         (MATCH_ALL_IN, 'result tags are in this set of tags (recommended)'),
         (MATCH_CHECK, 'only match check, ignore tags'),
     )
@@ -1039,10 +1037,6 @@ class ResultFilter(models.Model):
         elif self.match_if == self.MATCH_ALL_IN:
             ack_tags = self.tags.values_list('value', flat=True)
             return all([tag in ack_tags for tag in result.tags.values_list('value', flat=True)])
-        elif self.match_if == self.MATCH_EXACT:
-            # TODO probably a better way to do this...
-            return sorted(self.tags.values_list('value', flat=True)) == \
-                   sorted(result.tags.values_list('value', flat=True))
 
         raise NotImplementedError()
 

@@ -216,28 +216,3 @@ class TestAcks(LocalTestCase):
         # 1 matching, 1 not should NOT match
         result.tags.add(tags[2])
         self.assertFalse(ack.matches_result(result))
-
-    def test_match_exact(self):
-        tags = [StatusCheckResultTags.objects.get_or_create(value='tag' + str(i))[0] for i in range(3)]
-        ack = Acknowledgement(status_check=self.http_check, match_if=Acknowledgement.MATCH_EXACT)
-        ack.save()
-        ack.tags.add(tags[0], tags[1])
-
-        now = timezone.now()
-        result = StatusCheckResult(check=self.http_check, succeeded=False, time=now, time_complete=now)
-        result.save()
-
-        # no tags does not match
-        self.assertFalse(ack.matches_result(result))
-
-        # 1 matching tag still does not match
-        result.tags.add(tags[0])
-        self.assertFalse(ack.matches_result(result))
-
-        # exact match should match
-        result.tags.add(tags[1])
-        self.assertTrue(ack.matches_result(result))
-
-        # extra tag should not match
-        result.tags.add(tags[2])
-        self.assertFalse(ack.matches_result(result))
