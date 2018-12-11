@@ -1011,6 +1011,7 @@ class Shift(models.Model):
 
 
 class ResultFilter(models.Model):
+    """Filter that matches StatusCheckResults."""
     class Meta:
         abstract = True
 
@@ -1020,8 +1021,8 @@ class ResultFilter(models.Model):
     MATCH_ALL_IN = 'A'
     MATCH_CHECK = 'C'
     MATCH_TYPE_CHOICES = (
-        (MATCH_ALL_IN, 'result tags are in this set of tags (recommended)'),
-        (MATCH_CHECK, 'only match check, ignore tags'),
+        (MATCH_ALL_IN, 'Result tags are in this set of tags (recommended).'),
+        (MATCH_CHECK, 'Only match check, ignore tags.'),
     )
     match_if = models.TextField(max_length=1, null=False, blank=False, default=MATCH_ALL_IN, choices=MATCH_TYPE_CHOICES)
 
@@ -1042,6 +1043,18 @@ class ResultFilter(models.Model):
 
 
 class Acknowledgement(ResultFilter):
+    """
+    A filter that matches on a StatusCheck (or subset of a StatusCheck, if matching on tags).
+    An Acknowledgement is considered 'open' if closed_at is set to null.
+
+    Acknowledgements "expire" (auto-close) if the expire_at parameter is set. Expiration is performed in two ways:
+      1) get_acks_matching_check() will not return checks where expire_at <= now.
+      2) A periodic celery task calls ack.close() on checks where expire_at <= now.
+
+    Acknowledgements are also automatically closed when their StatusCheck succeeds at least close_after_successes
+    times (consecutively). This is done by Acknowledgement.close_succeeding_acks(), which is called by StatusCheck.run()
+    whenever a check succeeds.
+    """
     created_at = models.DateTimeField(default=timezone.now)
     created_by = models.ForeignKey(User, null=True, default=None)
 
@@ -1105,12 +1118,22 @@ class Acknowledgement(ResultFilter):
 
     def close(self, reason):
         # type: (str) -> None
+        """Set closed_at and closed_reason and update the DB."""
         self.closed_at = timezone.now()
         self.closed_reason = reason
         self.save(update_fields=('closed_at', 'closed_reason'))
 
     def clone(self, created_by):
         # type: (Union[User, None]) -> Acknowledgement
+        """
+        Returns a new Acknowledgement with the same parameters as this one. The new ack is saved to the database
+        during creation (necessary because of the many-to-many relationship for tags).
+
+        Expiration dates are re-calculated relative to now, maintaining the same duration.
+
+        :param created_by django User that created the check (may be None, but may not be AnonymousUser).
+        :returns new Acknowledgement
+        """
         ack = Acknowledgement(status_check=self.status_check, match_if=self.match_if, created_by=created_by,
                               expire_at=timezone.now() + (self.expire_at - self.created_at) if self.expire_at else None,
                               close_after_successes=self.close_after_successes)
