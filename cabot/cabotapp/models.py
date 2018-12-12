@@ -1055,14 +1055,14 @@ class Acknowledgement(ResultFilter):
     times (consecutively). This is done by Acknowledgement.close_succeeding_acks(), which is called by StatusCheck.run()
     whenever a check succeeds.
     """
-    created_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
     created_by = models.ForeignKey(User, null=True, default=None)
 
     # if 'closed_at' is set, the ack is considered 'closed'
-    closed_at = models.DateTimeField(null=True, default=None)
+    closed_at = models.DateTimeField(null=True, default=None, db_index=True)
     closed_reason = models.TextField(max_length=255, null=True, blank=False, default=None)
 
-    expire_at = models.DateTimeField(null=True, default=None,
+    expire_at = models.DateTimeField(null=True, default=None, db_index=True,
                                      help_text='After this time the acknowledgement will be automatically closed and '
                                                'alerts will resume, even if the check is still failing.')
     close_after_successes = models.PositiveIntegerField(null=True, default=1,

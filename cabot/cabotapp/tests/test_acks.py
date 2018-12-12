@@ -44,6 +44,8 @@ class TestAcks(LocalTestCase):
         # make sure it created the ack we expect
         ack = Acknowledgement.objects.get(status_check=self.http_check)
         self.assertEquals(ack.created_by_id, self.user.id)
+        self.assertAlmostEqual((ack.expire_at - ack.created_at).seconds, 4 * 60 * 60)  # expiry defaults to 4 hours
+        self.assertEquals(ack.close_after_successes, 1)
         self.assertTrue(ack.matches_result(result))
         self.assertEquals(ack.match_if, Acknowledgement.MATCH_ALL_IN)
 
@@ -216,3 +218,52 @@ class TestAcks(LocalTestCase):
         # 1 matching, 1 not should NOT match
         result.tags.add(tags[2])
         self.assertFalse(ack.matches_result(result))
+
+    def test_clean_orphaned_tags(self):
+        StatusCheckResult.objects.all().delete()
+        StatusCheckResultTags.objects.all().delete()
+        Acknowledgement.objects.all().delete()
+
+        start = timezone.now()
+        end = timezone.now() + timezone.timedelta(seconds=5)
+        results = [StatusCheckResult(check=self.http_check, time=start, time_complete=end, succeeded=False) for _ in range(500)]
+        StatusCheckResult.objects.bulk_create(results)
+
+        tags = [StatusCheckResultTags(value='tag{:03}'.format(i)) for i in range(300)]
+        StatusCheckResultTags.objects.bulk_create(tags)
+        tags = StatusCheckResultTags.objects.all()
+
+        ack = Acknowledgement(status_check=self.http_check, match_if=Acknowledgement.MATCH_CHECK).save()
+
+        results = StatusCheckResult.objects.filter(check=self.http_check)
+        tags = StatusCheckResultTags.objects.all()
+        ack = Acknowledgement.objects.all()[0]
+
+        # add tags 0-99 to first 100 results
+        for i, result in enumerate(results[:100]):
+            result.tags.add(tags[i])
+
+        # add tags 100-199 to the ack
+        ack.tags.add(*tags[100:200])
+
+        # remaining 200-299 should get cleaned up here
+        tasks.clean_orphaned_tags()
+
+        tags = StatusCheckResultTags.objects.order_by('value')
+        self.assertEqual(len(tags), 200)
+        self.assertEqual(list(tags.values_list('value', flat=True)), [u'tag{:03}'.format(i) for i in range(200)])
+
+        # if we delete acks, 100-200 should get cleaned up
+        ack.delete()
+        tasks.clean_orphaned_tags()
+
+        tags = StatusCheckResultTags.objects.order_by('value')
+        self.assertEqual(len(tags), 100)
+        self.assertEqual(list(tags.values_list('value', flat=True)), [u'tag{:03}'.format(i) for i in range(100)])
+
+        # now if we delete the status check results, they should all get cleaned up
+        StatusCheckResult.objects.all().delete()
+        tasks.clean_orphaned_tags()
+
+        tags = StatusCheckResultTags.objects.order_by('value')
+        self.assertEqual(len(tags), 0)

@@ -8,7 +8,7 @@ from celery.task import task
 from django.core.mail import EmailMessage
 from django.core.urlresolvers import reverse
 
-from cabot.cabotapp.models import Schedule, Acknowledgement
+from cabot.cabotapp.models import Schedule, Acknowledgement, StatusCheckResultTags, StatusCheckResult
 from cabot.cabotapp.schedule_validation import update_schedule_problems
 from cabot.cabotapp.utils import build_absolute_url
 from cabot.celery.celery_queue_config import STATUS_CHECK_TO_QUEUE
@@ -230,8 +230,17 @@ def send_schedule_problems_email(schedule_id):
 def close_expired_acknowledgements():
     now = timezone.now()
 
-    # loop over open checks where expire_at >= now
-    print("closing at {}".format(now))
+    # loop over open acks where expire_at >= now
     for ack in Acknowledgement.objects.filter(closed_at__isnull=True, expire_at__lte=now):
-        print("CLOSING")
         ack.close('expired')
+
+
+@task(ignore_result=True)
+def clean_orphaned_tags():
+    ack_tags = Acknowledgement.tags.through.objects.values('statuscheckresulttags')
+    result_tags = StatusCheckResult.tags.through.objects.values('statuscheckresulttags')
+    orphaned_tags = StatusCheckResultTags.objects.exclude(pk__in=ack_tags).exclude(pk__in=result_tags)
+
+    logger.info("Deleting {} orphaned tags (out of {} total tags)..."
+                .format(orphaned_tags.count(), StatusCheckResultTags.objects.count()))
+    orphaned_tags.delete()

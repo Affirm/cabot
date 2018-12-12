@@ -29,6 +29,14 @@ CELERYBEAT_SCHEDULE = {
         'task': 'cabot.cabotapp.tasks.clean_db',
         'schedule': timedelta(seconds=defs.CLEAN_DB_FREQUENCY),
     },
+    'clean-orphaned-tags': {
+        'task': 'cabot.cabotapp.tasks.clean_orphaned_tags',
+        'schedule': timedelta(seconds=defs.CLEAN_ORPHANED_TAGS_FREQUENCY),
+    },
+    'close-expired-acknowledgements': {
+        'task': 'cabot.cabotapp.tasks.close_expired_acknowledgements',
+        'schedule': timedelta(seconds=defs.CLOSE_EXPIRED_ACKNOWLEDGEMENTS_FREQUENCY),
+    },
     'sync-all-grafana-checks': {
         'task': 'cabot.metricsapp.tasks.sync_all_grafana_checks',
         'schedule': timedelta(seconds=defs.SYNC_ALL_GRAFANA_CHECKS_FREQUENCY)
@@ -77,11 +85,19 @@ CELERY_ROUTES = {
         'queue': 'maintenance',
         'routing_key': 'maintenance',
     },
+    'cabot.cabotapp.tasks.clean_orphaned_tags': {
+        'queue': 'maintenance',
+        'routing_key': 'maintenance',
+    },
     'celery.backend_cleanup': {
         'queue': 'maintenance',
         'routing_key': 'maintenance',
     },
     'cabot.cabotapp.tasks.send_schedule_problems_email': {
+        'queue': 'batch',
+        'routing_key': 'batch'
+    },
+    'cabot.cabotapp.tasks.close_expired_acknowledgements': {
         'queue': 'batch',
         'routing_key': 'batch'
     },
