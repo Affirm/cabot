@@ -998,6 +998,25 @@ class AckForm(GroupedModelForm):
         self.fields['close_after_successes'].required = False  # close_after_successes can be blank
 
 
+class AckUpdateView(LoginRequiredMixin, UpdateView):
+    form_class = AckForm
+    template_name = 'cabotapp/acknowledgement_form.html'
+    model = Acknowledgement
+
+    def get_success_url(self):
+        return '{}#check-{}'.format(reverse('acks'), self.object.status_check.id)
+
+    @transaction.atomic()
+    def form_valid(self, form):
+        if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
+            form.instance.created_by = self.request.user
+
+        # always create a new instance
+        form.instance.pk = None
+
+        return super(AckUpdateView, self).form_valid(form)
+
+
 class AckCreateView(LoginRequiredMixin, CreateView):
     form_class = AckForm
     template_name = 'cabotapp/acknowledgement_form.html'
@@ -1031,10 +1050,6 @@ class AckCreateView(LoginRequiredMixin, CreateView):
         if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
             form.instance.created_by = self.request.user
 
-        # only allow one open ack per status check
-        for ack in Acknowledgement.objects.filter(status_check=form.instance.status_check, closed_at=None):
-            ack.close('options changed')
-
         return super(AckCreateView, self).form_valid(form)
 
     def get_context_data(self, **kwargs):
@@ -1046,21 +1061,15 @@ class AckCloseView(LoginRequiredMixin, View):
     @transaction.atomic()
     def get(self, request, pk, **kwargs):
         ack = Acknowledgement.objects.get(pk=int(pk))
-
         user = request.user.username if request.user.pk else None
         username = user.username if user else 'anonymous user'
         ack.close('closed by {} through web'.format(username))
-
         return HttpResponseRedirect(reverse('acks'))
 
 
 class AckReopenView(LoginRequiredMixin, View):
     @transaction.atomic()
     def get(self, request, pk, **kwargs):
-        # only allow one open ack per status check
-        for ack in Acknowledgement.objects.filter(status_check=form.instance.status_check, closed_at=None):
-            ack.close('options changed')
-
         ack = Acknowledgement.objects.get(pk=int(pk))
         user = request.user if request.user.pk else None  # None if anonymous user
         ack.clone(created_by=user)

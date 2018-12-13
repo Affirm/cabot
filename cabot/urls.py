@@ -28,6 +28,7 @@ from cabot.cabotapp.views import (
     ScheduleSnoozeWarningsView,
     AckListView,
     AckCreateView,
+    AckUpdateView,
     AckCloseView,
     AckReopenView,
 )
@@ -175,6 +176,9 @@ urlpatterns = patterns(
     url(r'^acks/reopen/(?P<pk>\d+)$',
         view=AckReopenView.as_view(),
         name='reopen-ack'),
+    url(r'^acks/update/(?P<pk>\d+)$',
+        view=AckUpdateView.as_view(),
+        name='update-ack'),
 
     url(r'^user/(?P<pk>\d+)/profile/$',
         view=UserProfileUpdateView.as_view(),

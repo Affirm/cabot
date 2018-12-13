@@ -1054,6 +1054,9 @@ class Acknowledgement(ResultFilter):
     Acknowledgements are also automatically closed when their StatusCheck succeeds at least close_after_successes
     times (consecutively). This is done by Acknowledgement.close_succeeding_acks(), which is called by StatusCheck.run()
     whenever a check succeeds.
+
+    For simplicity, only one Acknowledgement can exist per StatusCheck. This is enforced by automatically closing
+    Acknowledgements that already exist for the same status check in Acknowledgement.save() (with a fixed reason).
     """
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
     created_by = models.ForeignKey(User, null=True, default=None)
@@ -1115,6 +1118,16 @@ class Acknowledgement(ResultFilter):
                 if len(results) >= ack.close_after_successes:
                     reason = 'check passed {} times'.format(len(results)) if len(results) != 1 else 'check passed'
                     ack.close(reason)
+
+    def save(self, **kwargs):
+        # THERE CAN BE ONLY ONE. for log trails.
+        existing = Acknowledgement.objects\
+            .filter(status_check=self.status_check, closed_at__isnull=True)\
+            .exclude(pk=self.pk)
+        for old_ack in existing:
+            old_ack.close('options changed')
+
+        return super(Acknowledgement, self).save(**kwargs)
 
     def close(self, reason):
         # type: (str) -> None

@@ -145,15 +145,20 @@ def clean_db(days_to_retain=60):
         time__lte=timezone.now()-timedelta(days=days_to_retain))
     to_discard_snapshots = models.ServiceStatusSnapshot.objects.filter(
         time__lte=timezone.now()-timedelta(days=days_to_retain))
+    to_discard_acks = models.Acknowledgement.objects.filter(
+        closed_at__lte=timezone.now()-timedelta(days=days_to_retain))
 
     result_ids = to_discard_results.values_list('id', flat=True)[:100]
     snapshot_ids = to_discard_snapshots.values_list('id', flat=True)[:100]
+    ack_ids = to_discard_acks.values_list('id', flat=True)[:100]
 
     if not result_ids:
         logger.info('Completed deleting StatusCheckResult objects')
     if not snapshot_ids:
         logger.info('Completed deleting ServiceStatusSnapshot objects')
-    if (not snapshot_ids) and (not result_ids):
+    if not ack_ids:
+        logger.info('Completed deleting Acknowledgement objects')
+    if (not snapshot_ids) and (not result_ids) and (not ack_ids):
         return
 
     logger.info('Processing %s StatusCheckResult objects' % len(result_ids))
@@ -162,6 +167,7 @@ def clean_db(days_to_retain=60):
 
     models.StatusCheckResult.objects.filter(id__in=result_ids).delete()
     models.ServiceStatusSnapshot.objects.filter(id__in=snapshot_ids).delete()
+    models.Acknowledgement.objects.filter(id__in=ack_ids).delete()
 
     clean_db.apply_async(kwargs={'days_to_retain': days_to_retain},
                          countdown=3)
