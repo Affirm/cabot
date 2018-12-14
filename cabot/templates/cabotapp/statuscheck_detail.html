@@ -58,9 +58,10 @@
           <th>Status</th>
           <th>Time started</th>
           <th>Time complete</th>
-          <th>Took</th>
-          <th>{% if show_tags %}<a href="{% url 'check' pk=check.pk %}">{% endif %}Error message{% if show_tags %}</a>{% endif %} /
-            {% if not show_tags %}<a href="{% url 'check' pk=check.pk %}?show_tags=1">{% endif %}Tags{% if not show_tags %}</a>{% endif %}</th>
+          <th>Runtime</th>
+          <th>{% if show_tags %}<a href="{% url 'check' pk=check.pk %}">{% endif %}Message{% if show_tags %}</a>{% endif %} /
+            {% if not show_tags %}<a href="{% url 'check' pk=check.pk %}?show_tags=1">{% endif %}Tags{% if not show_tags %}</a>{% endif %}
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -83,9 +84,9 @@
             {% endif %}
           </td>
           <td>
-            <a href="{% url "result" pk=result.id %}">{{ result.time }}</a>
+            <a href="{% url "result" pk=result.id %}">{{ result.time|format_timestamp }}</a>
           </td>
-          <td>{{ result.time_complete }}</td>
+          <td>{{ result.time_complete|format_timestamp }}</td>
           <td>{{ result.took }} ms</td>
           <td>{% if not show_tags %}{% autoescape off %}{{ result.error|default:"" }}{% endautoescape %}
           {% else %}{% for tag in result.tags.all %}<code>{{ tag }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}

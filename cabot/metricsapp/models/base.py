@@ -42,25 +42,31 @@ class MetricsStatusCheckBase(StatusCheck):
     source = models.ForeignKey('MetricsSourceBase')
     check_type = models.CharField(
         choices=CHECK_TYPES,
-        max_length=30
+        max_length=30,
+        verbose_name='Comparison operator',
+        help_text='Comparison operator to use when comparing data point values against a threshold. The check will '
+                  'succeed if the expression "value operator threshold" (e.g. 10 >= 4) is true.'
     )
     warning_value = models.FloatField(
         null=True,
         blank=True,
-        help_text='If this expression evaluates to False, the check will fail with a warning. Checks may have '
-                  'both warning and high alert values, or only one.'
+        verbose_name='Warning threshold',
+        help_text='Threshold to use for warnings. A check may have a warning threshold, failure threshold, or both.'
     )
     high_alert_importance = models.CharField(
         max_length=30,
         choices=IMPORTANCES,
         default=Service.ERROR_STATUS,
-        help_text='Severity level for a high alert failure. Critical alerts are for things you want to wake you '
-                  'up, and errors are for things you can fix the next morning.'
+        verbose_name='Failure severity',
+        help_text='Severity level for a failure. Choose "critical" if the alert needs immediate attention, '
+                  'and "error" if you can fix it tomorrow morning.'
     )
     high_alert_value = models.FloatField(
         null=True,
         blank=True,
-        help_text='If this expression evaluates to False, the check will fail with an error or critical level alert.'
+        verbose_name='Failure threshold',
+        help_text='Threshold to use for failures (error or critical). A check may have a warning threshold, '
+                  'failure threshold, or both.'
     )
     time_range = models.IntegerField(
         default=defs.METRIC_STATUS_TIME_RANGE_DEFAULT,
