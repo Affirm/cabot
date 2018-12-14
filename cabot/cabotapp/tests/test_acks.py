@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from cabot.cabotapp import tasks
 from cabot.cabotapp.models import Acknowledgement, StatusCheckResult, StatusCheckResultTags
-from .utils import LocalTestCase, fake_http_404_response, fake_http_200_response, patch_field_default
+from .utils import LocalTestCase, fake_http_404_response, fake_http_200_response
 
 
 class TestAcks(LocalTestCase):
@@ -229,7 +229,8 @@ class TestAcks(LocalTestCase):
 
         start = timezone.now()
         end = timezone.now() + timezone.timedelta(seconds=5)
-        results = [StatusCheckResult(check=self.http_check, time=start, time_complete=end, succeeded=False) for _ in range(500)]
+        results = [StatusCheckResult(check=self.http_check, time=start, time_complete=end, succeeded=False)
+                   for _ in range(500)]
         StatusCheckResult.objects.bulk_create(results)
 
         tags = [StatusCheckResultTags(value='tag{:03}'.format(i)) for i in range(300)]

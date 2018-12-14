@@ -1,8 +1,4 @@
-from collections import defaultdict
-
 import six
-from django.core.handlers.wsgi import WSGIRequest
-from django.shortcuts import render
 from django.template import RequestContext, loader
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta

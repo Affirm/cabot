@@ -11,7 +11,10 @@ from cabot.cabotapp.models import (
     Service,
     StatusCheckResult,
     Schedule,
-    Shift, get_duty_officers, get_fallback_officers, StatusCheck, UserProfile)
+    Shift,
+    get_duty_officers,
+    get_fallback_officers,
+    UserProfile)
 
 
 class PluginTestCase(APITestCase):
