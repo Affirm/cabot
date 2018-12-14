@@ -1042,7 +1042,8 @@ class AckCreateView(LoginRequiredMixin, CreateView):
             'status_check': check.pk if check else '',
             'tags': result.tags.all() if result else None,
             'match_if': Acknowledgement.MATCH_CHECK if not result else Acknowledgement.MATCH_ALL_IN,
-            'expire_at': self.request.GET.get('expire_after_hours', '4')  # default to expiring after 4 hours
+            'expire_at': self.request.GET.get('expire_after_hours', '4'),  # default to expiring after 4 hours
+            'close_after_successes': 1,
         }
 
     @transaction.atomic()

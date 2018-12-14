@@ -1,14 +1,10 @@
 from django.core.urlresolvers import reverse
-from mock import patch, Mock
+from mock import patch
 from django.utils import timezone
 
 from cabot.cabotapp import tasks
 from cabot.cabotapp.models import Acknowledgement, StatusCheckResult, StatusCheckResultTags
 from .utils import LocalTestCase, fake_http_404_response, fake_http_200_response, patch_field_default
-
-# from cabot.cabotapp.alert import send_alert, AlertPlugin
-# @patch('cabot.cabotapp.models.send_alert')
-# @patch('cabot.cabotapp.alert.AlertPlugin.send_alert')
 
 
 class TestAcks(LocalTestCase):
@@ -18,10 +14,14 @@ class TestAcks(LocalTestCase):
 
         self.client.login(username=self.username, password=self.password)
 
-    def fail_http_check(self):
+    def fail_http_check(self, tags=[]):
         """runs self.http_check such that it will fail, then returns the StatusCheckResult"""
         with patch('cabot.cabotapp.models.requests.request', fake_http_404_response):
             self.http_check.run()
+
+        # add tags
+        self.http_check.last_result().tags.add(*[StatusCheckResultTags.objects.create(value=v) for v in tags])
+
         return self.http_check.last_result()
 
     def pass_http_check(self):
@@ -31,7 +31,8 @@ class TestAcks(LocalTestCase):
         return self.http_check.last_result()
 
     def test_create_ack_for_result(self):
-        result = self.fail_http_check()
+        """tests creating an ack using the create-ack endpoint with the result_id param (submits default form)"""
+        result = self.fail_http_check(tags=['cool_tag'])
         self.assertFalse(result.succeeded)
         self.assertFalse(result.acked)
 
@@ -44,12 +45,14 @@ class TestAcks(LocalTestCase):
         # make sure it created the ack we expect
         ack = Acknowledgement.objects.get(status_check=self.http_check)
         self.assertEquals(ack.created_by_id, self.user.id)
+        self.assertTrue(ack.tags.filter(value='cool_tag').exists())  # should have matching tags
         self.assertAlmostEqual((ack.expire_at - ack.created_at).seconds, 4 * 60 * 60)  # expiry defaults to 4 hours
         self.assertEquals(ack.close_after_successes, 1)
         self.assertTrue(ack.matches_result(result))
         self.assertEquals(ack.match_if, Acknowledgement.MATCH_ALL_IN)
 
     def test_create_ack_for_result_triggers(self):
+        """tests creating an ack using the create-ack endpoint, and make sure it actually acks on the next failure"""
         self.fail_http_check()
         result = self.http_check.last_result()
         self.assertFalse(result.succeeded)
