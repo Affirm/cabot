@@ -45,8 +45,8 @@
           <th>Status</th>
           <th>Time started</th>
           <th>Time complete</th>
-          <th>Took</th>
-          <th>Error</th>
+          <th>Runtime</th>
+          <th>Message</th>
         </tr>
       </thead>
       <tbody>
@@ -57,9 +57,9 @@
             </span>
           </td>
           <td>
-            <a href="{% url "result" pk=result.id %}">{{ result.time }}</a>
+            <a href="{% url "result" pk=result.id %}">{{ result.time|format_timestamp }}</a>
           </td>
-          <td>{{ result.time_complete }}</td>
+          <td>{{ result.time_complete|format_timestamp }}</td>
           <td>{{ result.took }} ms</td>
           <td>{% autoescape off %}{{ result.error|default:"" }}{% endautoescape %}</td>
         </tr>
