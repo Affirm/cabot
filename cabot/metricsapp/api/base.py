@@ -127,13 +127,14 @@ def run_metrics_check(check):
     # If the series is empty, apply the empty-series handler
     if series['data'] == []:
         if check.on_empty_series == defs.ON_EMPTY_SERIES_PASS:
-            return StatusCheckResult(check=check, succeeded=True, error='SUCCESS: no data')
+            return StatusCheckResult(check=check, succeeded=True, error='SUCCESS: no data'), []
         if check.on_empty_series == defs.ON_EMPTY_SERIES_WARN:
             check.importance = Service.WARNING_STATUS
-            return StatusCheckResult(check=check, succeeded=False, error='WARNING: no data')
+            return StatusCheckResult(check=check, succeeded=False, error='WARNING: no data'), ['warning:no data']
         if check.on_empty_series == defs.ON_EMPTY_SERIES_FAIL:
             check.importance = check.high_alert_importance
-            return StatusCheckResult(check=check, succeeded=False, error='{}: no data'.format(check.importance))
+            tags = ['{}:no data'.format(check.importance.lower())]
+            return StatusCheckResult(check=check, succeeded=False, error='{}: no data'.format(check.importance)), tags
 
     # Ignore all checks before the following start time
     start_time = time.time() - check.time_range * 60

@@ -357,9 +357,10 @@ class TestEmptySeries(TestCase):
         expected = [{'datapoints': [[mock_time(), 0.0]], 'series': 'no_data_fill_0'}]
         self.assertEqual(self.check.get_series()['data'], expected)
         # The test should fail
-        result = self.check._run()
+        result, tags = self.check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL no_data_fill_0: 0.0 not > 5.0')
+        self.assertEqual(tags, ['critical:no_data_fill_0', 'warning:no_data_fill_0'])
         self.assertEqual(self.check.importance, Service.CRITICAL_STATUS)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
@@ -369,8 +370,9 @@ class TestEmptySeries(TestCase):
         # Points should not be filled in
         self.assertEqual(self.check.get_series()['data'], [])
         # The test should succeed
-        result = self.check._run()
+        result, tags = self.check._run()
         self.assertTrue(result.succeeded)
+        self.assertEqual(tags, [])
         self.assertEqual(result.error, u'SUCCESS: no data')
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
@@ -380,9 +382,10 @@ class TestEmptySeries(TestCase):
         # Points should not be filled in
         self.assertEqual(self.check.get_series()['data'], [])
         # The test should warn
-        result = self.check._run()
+        result, tags = self.check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING: no data')
+        self.assertEqual(tags, ['warning:no data'])
         self.assertEqual(self.check.importance, Service.WARNING_STATUS)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
@@ -393,13 +396,15 @@ class TestEmptySeries(TestCase):
         self.assertEqual(self.check.get_series()['data'], [])
         # The test should fail and respect the high_alert_importance (ERROR here)
         self.check.high_alert_importance = Service.ERROR_STATUS
-        result = self.check._run()
+        result, tags = self.check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'ERROR: no data')
+        self.assertEqual(tags, ['error:no data'])
         self.assertEqual(self.check.importance, Service.ERROR_STATUS)
         # This time it should fail with CRITICAL
         self.check.high_alert_importance = Service.CRITICAL_STATUS
-        result = self.check._run()
+        result, tags = self.check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL: no data')
+        self.assertEqual(tags, ['critical:no data'])
         self.assertEqual(self.check.importance, Service.CRITICAL_STATUS)
