@@ -149,6 +149,7 @@ class TestElasticsearchStatusCheck(TestCase):
         result, tags = self.es_check._run()
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
+        self.assertEqual(tags, [])
 
     def test_invalid_query(self):
         """Test that an invalid Elasticsearch query is caught in save()"""
@@ -173,6 +174,7 @@ class TestElasticsearchStatusCheck(TestCase):
         result, tags = self.es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
+        self.assertEqual(tags, ['critical:no_data_fill_0', 'warning:no_data_fill_0'])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_multiple_metrics_terms)
     @patch('time.time', mock_time)
@@ -208,6 +210,7 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertFalse(result.succeeded)
         self.assertEquals(result.error, 'CRITICAL maroon.max: 18.3 not < 18.0')
         self.assertEqual(self.es_check.importance, Service.CRITICAL_STATUS)
+        self.assertEqual(tags, ['critical:maroon.max', 'warning:maroon.min', 'warning:maroon.max'])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_filters_aggregation)
     @patch('time.time', mock_time)
@@ -332,6 +335,7 @@ class TestElasticsearchStatusCheck(TestCase):
         result, tags = self.es_check._run()
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
+        self.assertEqual(tags, [])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_only_none)
     @patch('time.time', mock_time)
@@ -349,6 +353,7 @@ class TestElasticsearchStatusCheck(TestCase):
         result, tags = self.es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
+        self.assertEqual(tags, ['critical:no_data_fill_0', 'warning:no_data_fill_0'])
 
     def test_adjust_time_range(self):
         # save() should adjust the time range in queries to match the time range field
@@ -410,6 +415,7 @@ class TestElasticsearchStatusCheck(TestCase):
         result, tags = self.es_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'CRITICAL no_data_fill_0: 0.0 not >= 3.0')
+        self.assertEqual(tags, ['critical:no_data_fill_0', 'warning:no_data_fill_0'])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_all_but_first_none)
     @patch('time.time', mock_time)
