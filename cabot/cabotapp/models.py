@@ -14,7 +14,6 @@ from cabot.cabotapp.models_plugins import (  # noqa (unused, imported for side e
 )
 from cabot.cabotapp import defs
 from cabot.cabotapp.fields import PositiveIntegerMaxField
-import cabot.cabotapp.utils
 
 from collections import defaultdict
 from datetime import timedelta
@@ -584,20 +583,20 @@ class ActivityCounter(models.Model):
 
     def increment_and_save(self):
         if self.count == 0:
-            self.last_enabled = cabot.cabotapp.utils.datetime_now()
+            self.last_enabled = timezone.now()
         self.count += 1
         self.save()
 
     def decrement_and_save(self):
         if self.count == 1:
-            self.last_disabled = cabot.cabotapp.utils.datetime_now()
+            self.last_disabled = timezone.now()
         if self.count > 0:
             self.count -= 1
             self.save()
 
     def reset_and_save(self):
         if self.count > 0:
-            self.last_disabled = cabot.cabotapp.utils.datetime_now()
+            self.last_disabled = timezone.now()
             self.count = 0
             self.save()
 

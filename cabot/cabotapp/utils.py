@@ -10,8 +10,3 @@ def build_absolute_url(relative_url):
 def format_datetime(dt):
     '''Convert datetime to string. None is converted to empty string.'''
     return '' if dt is None else datetime.strftime(dt, '%Y-%m-%d %H:%M:%S')
-
-
-def datetime_now():
-    '''Wrapper around datetime.now(). Needed for mocking.'''
-    return datetime.now()

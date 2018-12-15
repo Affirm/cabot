@@ -395,9 +395,9 @@ class TestActivityCounterAPI(APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @patch('cabot.cabotapp.utils.datetime_now')
-    def test_counter_incr(self, mock_datetime_now):
-        mock_datetime_now.return_value = self.LAST_ENABLED_TIME
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_counter_incr(self, mock_now):
+        mock_now.return_value = self.LAST_ENABLED_TIME
         self._set_activity_counter(True, 0)
         url = '/api/status-checks/activity-counter?id=10102'
         expected_body = {
@@ -421,9 +421,9 @@ class TestActivityCounterAPI(APITransactionTestCase):
         self.assertEqual(json.loads(response.content), expected_body)
         self.assertEqual(StatusCheck.objects.filter(id=10102)[0].activity_counter.count, 1)
 
-    @patch('cabot.cabotapp.utils.datetime_now')
-    def test_counter_decr(self, mock_datetime_now):
-        mock_datetime_now.return_value = self.LAST_DISABLED_TIME
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_counter_decr(self, mock_now):
+        mock_now.return_value = self.LAST_DISABLED_TIME
         self._set_activity_counter(True, 2)
         url = '/api/status-checks/activity-counter?id=10102&action=decr'
         expected_body = {
@@ -453,9 +453,9 @@ class TestActivityCounterAPI(APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(json.loads(response.content), expected_body)
 
-    @patch('cabot.cabotapp.utils.datetime_now')
-    def test_counter_reset(self, mock_datetime_now):
-        mock_datetime_now.return_value = self.LAST_DISABLED_TIME
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_counter_reset(self, mock_now):
+        mock_now.return_value = self.LAST_DISABLED_TIME
         self._set_activity_counter(True, 11)
         url = '/api/status-checks/activity-counter?id=10102&action=reset'
         expected_body = {
