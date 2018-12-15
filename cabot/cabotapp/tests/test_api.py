@@ -5,6 +5,8 @@ from rest_framework import status, HTTP_HEADER_ENCODING
 from rest_framework.reverse import reverse as api_reverse
 import base64
 import json
+from datetime import datetime
+from mock import patch
 
 from rest_framework.test import APITransactionTestCase
 
@@ -342,28 +344,37 @@ class TestAPIFiltering(LocalTestCase):
 
 
 class TestActivityCounterAPI(APITransactionTestCase):
+    LAST_ENABLED_TIME = datetime(2018, 8, 15, 1, 1, 1)
+    LAST_DISABLED_TIME = datetime(2018, 8, 15, 2, 2, 2)
+
     def setUp(self):
         self.http_check = HttpStatusCheck.objects.create(
             id=10102,
             name='Http Check',
         )
-
         super(TestActivityCounterAPI, self).setUp()
 
     def _set_activity_counter(self, enabled, count):
         '''Utility function to set the activity counter for the http check'''
         self.http_check.use_activity_counter = enabled
         self.http_check.save()
-        ActivityCounter.objects.create(status_check=self.http_check, count=count)
+        ActivityCounter.objects.create(
+            status_check=self.http_check,
+            count=count,
+            last_enabled=(None if count == 0 else self.LAST_ENABLED_TIME),
+            last_disabled=None,
+        )
 
     def test_counter_get(self):
-        self._set_activity_counter(True, 1)
+        self._set_activity_counter(True, 0)
         url = '/api/status-checks/activity-counter?'
         expected_body = {
             'check.id': 10102,
             'check.name': 'Http Check',
-            'counter.count': 1,
+            'counter.count': 0,
             'counter.enabled': True,
+            'counter.last_enabled': '',
+            'counter.last_disabled': '',
         }
         # Get by id
         response = self.client.get(url + 'id=10102')
@@ -384,32 +395,55 @@ class TestActivityCounterAPI(APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def test_counter_incr(self):
-        self._set_activity_counter(True, 1)
-        url = '/api/status-checks/activity-counter?id=10102&action=incr'
-        expected_body = {
-            'check.id': 10102,
-            'check.name': 'Http Check',
-            'counter.count': 2,
-            'counter.enabled': True,
-            'detail': 'counter incremented to 2',
-        }
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(json.loads(response.content), expected_body)
-        self.assertEqual(StatusCheck.objects.filter(id=10102)[0].activity_counter.count, 2)
-
-    def test_counter_decr(self):
-        self._set_activity_counter(True, 1)
-        url = '/api/status-checks/activity-counter?id=10102&action=decr'
+    @patch('cabot.cabotapp.utils.datetime_now')
+    def test_counter_incr(self, mock_datetime_now):
+        mock_datetime_now.return_value = self.LAST_ENABLED_TIME
+        self._set_activity_counter(True, 0)
+        url = '/api/status-checks/activity-counter?id=10102'
         expected_body = {
             'check.id': 10102,
             'check.name': 'Http Check',
             'counter.count': 0,
             'counter.enabled': True,
-            'detail': 'counter decremented to 0',
+            'counter.last_enabled': '',
+            'counter.last_disabled': '',
         }
-        # Decrement counter from one to zero
+        # Counter starts at zero
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(json.loads(response.content), expected_body)
+        # Increment counter to one
+        expected_body['counter.count'] = 1
+        expected_body['counter.last_enabled'] = '2018-08-15 01:01:01'
+        expected_body['detail'] = 'counter incremented to 1'
+        response = self.client.get(url + '&action=incr')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(json.loads(response.content), expected_body)
+        self.assertEqual(StatusCheck.objects.filter(id=10102)[0].activity_counter.count, 1)
+
+    @patch('cabot.cabotapp.utils.datetime_now')
+    def test_counter_decr(self, mock_datetime_now):
+        mock_datetime_now.return_value = self.LAST_DISABLED_TIME
+        self._set_activity_counter(True, 2)
+        url = '/api/status-checks/activity-counter?id=10102&action=decr'
+        expected_body = {
+            'check.id': 10102,
+            'check.name': 'Http Check',
+            'counter.count': 1,
+            'counter.enabled': True,
+            'counter.last_enabled': '2018-08-15 01:01:01',
+            'counter.last_disabled': '',
+            'detail': 'counter decremented to 1',
+        }
+        # Decrement counter from two to one
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(json.loads(response.content), expected_body)
+        self.assertEqual(StatusCheck.objects.filter(id=10102)[0].activity_counter.count, 1)
+        # Decrement counter from two to zero
+        expected_body['counter.count'] = 0
+        expected_body['counter.last_disabled'] = '2018-08-15 02:02:02'
+        expected_body['detail'] = 'counter decremented to 0'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(json.loads(response.content), expected_body)
@@ -419,7 +453,9 @@ class TestActivityCounterAPI(APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(json.loads(response.content), expected_body)
 
-    def test_counter_reset(self):
+    @patch('cabot.cabotapp.utils.datetime_now')
+    def test_counter_reset(self, mock_datetime_now):
+        mock_datetime_now.return_value = self.LAST_DISABLED_TIME
         self._set_activity_counter(True, 11)
         url = '/api/status-checks/activity-counter?id=10102&action=reset'
         expected_body = {
@@ -427,6 +463,8 @@ class TestActivityCounterAPI(APITransactionTestCase):
             'check.name': 'Http Check',
             'counter.count': 0,
             'counter.enabled': True,
+            'counter.last_enabled': '2018-08-15 01:01:01',
+            'counter.last_disabled': '2018-08-15 02:02:02',
             'detail': 'counter reset to 0',
         }
         response = self.client.get(url)

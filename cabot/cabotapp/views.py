@@ -40,6 +40,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from cabot.cabotapp import alert
+from cabot.cabotapp.utils import format_datetime
 from models import AlertPluginUserData
 from django.contrib import messages
 from social.exceptions import AuthFailed
@@ -862,6 +863,8 @@ class ActivityCounterView(View):
             'check.name': check.name,
             'counter.count': counter.count,
             'counter.enabled': check.use_activity_counter,
+            'counter.last_enabled': format_datetime(counter.last_enabled),
+            'counter.last_disabled': format_datetime(counter.last_disabled),
         }
         if message:
             data['detail'] = message
@@ -894,20 +897,15 @@ class ActivityCounterView(View):
             return None
 
         if action == 'incr':
-            counter.count += 1
-            counter.save()
+            counter.increment_and_save()
             return 'counter incremented to {}'.format(counter.count)
 
         if action == 'decr':
-            if counter.count > 0:
-                counter.count -= 1
-                counter.save()
+            counter.decrement_and_save()
             return 'counter decremented to {}'.format(counter.count)
 
         if action == 'reset':
-            if counter.count > 0:
-                counter.count = 0
-                counter.save()
+            counter.reset_and_save()
             return 'counter reset to 0'
 
         raise ViewError("invalid action '{}'".format(action), 400)
