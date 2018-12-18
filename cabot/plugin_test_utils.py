@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from django.utils import timezone
 from django.contrib.auth.models import Permission, User
+from mock import Mock
 from rest_framework.test import APITestCase
 
 from cabot.cabotapp.alert import update_alert_plugins
@@ -15,6 +16,7 @@ from cabot.cabotapp.models import (
     get_duty_officers,
     get_fallback_officers,
     UserProfile)
+from cabot.metricsapp.models import GrafanaInstance, ElasticsearchStatusCheck, ElasticsearchSource
 
 
 class PluginTestCase(APITestCase):
@@ -55,6 +57,11 @@ class PluginTestCase(APITestCase):
         self.tcp_check:
           name: TCP Check
           importance: Error
+
+        self.es_check:
+          name: ES Metric Check
+          importance: Critical
+          get_status_image: Mock()
 
         self.service:
           name: Service
@@ -145,12 +152,38 @@ class PluginTestCase(APITestCase):
             timeout=6,
         )
 
+        self.es_source = ElasticsearchSource.objects.create(
+            name='es',
+            urls='localhost',
+            index='test-index-pls-ignore'
+        )
+
+        self.es_check = ElasticsearchStatusCheck.objects.create(
+            id=10104,
+            name='ES Metric Check',
+            created_by=self.user,
+            source=self.es_source,
+            check_type='>=',
+            warning_value=3.5,
+            high_alert_importance=Service.CRITICAL_STATUS,
+            high_alert_value=3.0,
+            queries='[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, '
+                    '"query": "test.query"}}, {"range": {"@timestamp": {"gte": "now-300m"}}}]}}, '
+                    '"aggs": {"agg": {"terms": {"field": "outstanding"}, '
+                    '"aggs": {"agg": {"date_histogram": {"field": "@timestamp", "interval": "1m", '
+                    '"extended_bounds": {"max": "now", "min": "now-3h"}}, '
+                    '"aggs": {"sum": {"sum": {"field": "count"}}}}}}}}]',
+            time_range=10000
+        )
+        ElasticsearchStatusCheck.get_status_image = Mock()
+
         self.service = Service.objects.create(id=2194, name='Service')
 
         self.service.status_checks.add(
             self.jenkins_check,
             self.http_check,
-            self.tcp_check
+            self.tcp_check,
+            self.es_check,
         )
 
         self.service.users_to_notify.add(self.user)
