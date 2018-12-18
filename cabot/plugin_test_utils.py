@@ -60,7 +60,7 @@ class PluginTestCase(APITestCase):
 
         self.es_check:
           name: ES Metric Check
-          importance: Critical
+          importance: Error
           get_status_image: Mock()
 
         self.service:
@@ -165,6 +165,7 @@ class PluginTestCase(APITestCase):
             source=self.es_source,
             check_type='>=',
             warning_value=3.5,
+            importance=Service.ERROR_STATUS,
             high_alert_importance=Service.CRITICAL_STATUS,
             high_alert_value=3.0,
             queries='[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, '
