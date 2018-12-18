@@ -193,19 +193,15 @@ class PluginTestCase(APITestCase):
         # clear any previous results
         StatusCheckResult.objects.all().delete()
 
-        time_per_run = timezone.timedelta(seconds=1)
-        start = timezone.now() - time_per_run * (len(checks) + 1)
-        finish = start + time_per_run
-
         for check, succeeded, acked in checks:
-            result = StatusCheckResult(check=check, time=start, time_complete=finish, succeeded=succeeded, acked=acked)
+            now = timezone.now()
+            result = StatusCheckResult(check=check, time=now, time_complete=now, succeeded=succeeded)
+            if hasattr(StatusCheckResult, 'acked'):  # forwards-compatible with acks
+                result.acked = acked
             result.save()
 
-            check.last_run = finish
+            check.last_run = now
             check.save()
-
-            start += time_per_run
-            finish += time_per_run
 
         if from_service_status:
             self.service.overall_status = from_service_status
@@ -219,10 +215,6 @@ class PluginTestCase(APITestCase):
         self.service.old_overall_status = old_status
         self.service.overall_status = new_status
         self.service.last_alert_sent = None
-
-        # PASSING -> PASSING never calls alert() normally (see Service.update_status())
-        self.assertFalse(old_status == new_status and old_status == Service.PASSING_STATUS,
-                         msg='PASSING -> PASSING should never occur naturally.')
 
         if self.service.alerts.count() == 0:
             print("transition_service warning: self.service has no alerts registered")
