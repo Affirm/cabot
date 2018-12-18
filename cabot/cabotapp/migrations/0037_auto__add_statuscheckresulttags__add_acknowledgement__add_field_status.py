@@ -19,11 +19,12 @@ class Migration(SchemaMigration):
             (u'id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
             ('status_check', self.gf('django.db.models.fields.related.ForeignKey')(to=orm['cabotapp.StatusCheck'])),
             ('match_if', self.gf('django.db.models.fields.TextField')(default='A', max_length=1)),
-            ('created_at', self.gf('django.db.models.fields.DateTimeField')(default=datetime.datetime.now)),
+            ('created_at', self.gf('django.db.models.fields.DateTimeField')(default=datetime.datetime.now, db_index=True)),
             ('created_by', self.gf('django.db.models.fields.related.ForeignKey')(default=None, to=orm['auth.User'], null=True)),
-            ('closed_at', self.gf('django.db.models.fields.DateTimeField')(default=None, null=True)),
+            ('note', self.gf('django.db.models.fields.TextField')(max_length=255, blank=True)),
+            ('closed_at', self.gf('django.db.models.fields.DateTimeField')(default=None, null=True, db_index=True)),
             ('closed_reason', self.gf('django.db.models.fields.TextField')(default=None, max_length=255, null=True)),
-            ('expire_at', self.gf('django.db.models.fields.DateTimeField')(default=None, null=True)),
+            ('expire_at', self.gf('django.db.models.fields.DateTimeField')(default=None, null=True, db_index=True)),
             ('close_after_successes', self.gf('django.db.models.fields.PositiveIntegerField')(default=1, null=True)),
         ))
         db.send_create_signal(u'cabotapp', ['Acknowledgement'])
@@ -102,13 +103,14 @@ class Migration(SchemaMigration):
         u'cabotapp.acknowledgement': {
             'Meta': {'object_name': 'Acknowledgement'},
             'close_after_successes': ('django.db.models.fields.PositiveIntegerField', [], {'default': '1', 'null': 'True'}),
-            'closed_at': ('django.db.models.fields.DateTimeField', [], {'default': 'None', 'null': 'True'}),
+            'closed_at': ('django.db.models.fields.DateTimeField', [], {'default': 'None', 'null': 'True', 'db_index': 'True'}),
             'closed_reason': ('django.db.models.fields.TextField', [], {'default': 'None', 'max_length': '255', 'null': 'True'}),
-            'created_at': ('django.db.models.fields.DateTimeField', [], {'default': 'datetime.datetime.now'}),
+            'created_at': ('django.db.models.fields.DateTimeField', [], {'default': 'datetime.datetime.now', 'db_index': 'True'}),
             'created_by': ('django.db.models.fields.related.ForeignKey', [], {'default': 'None', 'to': u"orm['auth.User']", 'null': 'True'}),
-            'expire_at': ('django.db.models.fields.DateTimeField', [], {'default': 'None', 'null': 'True'}),
+            'expire_at': ('django.db.models.fields.DateTimeField', [], {'default': 'None', 'null': 'True', 'db_index': 'True'}),
             u'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
             'match_if': ('django.db.models.fields.TextField', [], {'default': "'A'", 'max_length': '1'}),
+            'note': ('django.db.models.fields.TextField', [], {'max_length': '255', 'blank': 'True'}),
             'status_check': ('django.db.models.fields.related.ForeignKey', [], {'to': u"orm['cabotapp.StatusCheck']"}),
             'tags': ('django.db.models.fields.related.ManyToManyField', [], {'to': u"orm['cabotapp.StatusCheckResultTags']", 'symmetrical': 'False'})
         },

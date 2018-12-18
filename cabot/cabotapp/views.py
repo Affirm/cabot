@@ -961,8 +961,8 @@ class AckForm(GroupedModelForm):
     class Meta(GroupedModelForm.Meta):
         model = Acknowledgement
         grouped_fields = (
-            ('Filter', ('status_check', 'match_if', 'tags')),
-            ('Duration', ('expire_at', 'close_after_successes'))
+            ('Filter', ('status_check', 'match_if', 'tags', 'note')),
+            ('Duration', ('expire_at', 'close_after_successes')),
         )
         widgets = {
             'status_check': forms.Select(attrs={
@@ -974,9 +974,8 @@ class AckForm(GroupedModelForm):
                 'style': 'width: 70%',
             }),
             'match_if': forms.RadioSelect(),
-            'created_by': forms.Select(attrs={
-                'data-rel': 'chosen',
-                'disabled': True,
+            'note': forms.Textarea(attrs={
+                'rows': 2,
                 'style': 'width: 70%',
             }),
             'expire_at': TimeFromNowField(times=[1, 2, 4, 8, 12, 24],

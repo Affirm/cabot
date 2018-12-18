@@ -36,6 +36,7 @@
               <th>Created by</th>
               <th>Created at</th>
               <th>Expires</th>
+              <th>Note</th>
               <th></th>  {# for edit/delete buttons #}
             </tr>
           </thead>
@@ -63,7 +64,7 @@
                 {{ ack.created_at }}
               </td>
               <td>
-                {# this is ugly as hell because there are no array literals in django templates :| #}
+                {# this is ugly because there are no array literals in django templates :| #}
                 {% if not ack.expire_at and not ack.close_after_successes %}
                   <i>never</i>
                 {% else %}
@@ -75,6 +76,9 @@
                     after {{ ack.close_after_successes }} success{% if ack.close_after_successes > 1 %}es{% endif %}
                   {% endif %}
                 {% endif %}
+              </td>
+              <td>
+                {{ ack.note|urlize }}
               </td>
               <td class="text-right">
                 <a class="btn btn-xs" href="{% url 'update-ack' pk=ack.pk %}">

@@ -1060,6 +1060,8 @@ class Acknowledgement(ResultFilter):
     """
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
     created_by = models.ForeignKey(User, null=True, default=None)
+    note = models.TextField(max_length=255, blank=True,
+                            help_text='Leave a note explaining why this ack was created.')
 
     # if 'closed_at' is set, the ack is considered 'closed'
     closed_at = models.DateTimeField(null=True, default=None, db_index=True)
