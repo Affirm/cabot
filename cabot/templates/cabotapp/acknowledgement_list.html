@@ -166,9 +166,9 @@
   {% compress js %}
     <script type="text/javascript">
     document.addEventListener('DOMContentLoaded', function () {
-      var elems = document.getElementsByClassName(window.location.hash.slice(1) + "-row");
-      for (var i = 0; i < elems.length; i++) {
-          elems[i].className += " target";
+      if (window.location.hash.length > 1) {
+          var classes = window.location.hash.slice(1).split(',').map(c => '.' + c + '-row');
+          $(classes.join(',')).addClass('target');
       }
     });
     </script>
