@@ -162,7 +162,7 @@
       $('.sparktristate').sparkline('html', {type: 'tristate'})
 
       $('ul.nav li a').each () ->
-        if $($(this))[0].href == String(window.location)
+        if $($(this))[0].href == String(window.location).split('#')[0]
           $(this).parent().addClass('active')
 
       $('[data-rel="chosen"],[rel="chosen"]').chosen()
