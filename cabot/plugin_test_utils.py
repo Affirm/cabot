@@ -172,9 +172,6 @@ class PluginTestCase(APITestCase):
                              schedule=self.schedule)
         self.service.schedules.add(self.schedule)
 
-        self.assertEquals(get_duty_officers(self.schedule), [self.duty_officer])
-        self.assertEquals(get_fallback_officers(self.schedule), [self.fallback_officer])
-
         self.service.update_status()  # set initial status
 
         # make sure all users have profiles
