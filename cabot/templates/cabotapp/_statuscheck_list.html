@@ -47,13 +47,7 @@
             <a href="{% url "check" pk=check.id %}">{{check.name}}</a>
           </td>
           <td title="{{ check.calculated_status }}">
-            {% if check.active %}
-            <span class="label label-{% if check.calculated_status == 'passing' %}success{% elif check.calculated_status == 'acked' %}warning{% else %}danger{% endif %}">
-              {{ check.calculated_status|capfirst }}
-            </span>
-            {% else %}
-            <span class="label label-warning">Disabled</span>
-            {% endif %}
+            {% include 'cabotapp/_check_label.html' with check=check only %}
           </td>
           <td title="Last result from {{ check.last_run|timesince }} ago (rightmost is newest)" class="sparktristate" values="{{ check.cached_health }}">
             {% if not check.cached_health %}
