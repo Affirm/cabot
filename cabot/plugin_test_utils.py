@@ -19,7 +19,12 @@ from cabot.cabotapp.models import (
 
 class PluginTestCase(APITestCase):
     """
-    Sets up the following testing environment:
+    This class provides a common testing environment and utility functions for testing Cabot alert plugins.
+    The environment includes a service with each type of check, a user on the "users to notify" list, and a
+    schedule with an on-call and fallback officer. This class also includes some utility functions for
+    testing service states (transition_service_status) and check states (run_checks).
+
+    setUp() sets up the following testing environment:
 
     .. code-block:: yaml
 
@@ -68,20 +73,18 @@ class PluginTestCase(APITestCase):
             # call the base class to set up the environment described above
             super(MyCoolPluginTestCase, self).setUp()
 
-            # add the email alert to the test service
+            # add e.g. the email alert to the test service
             self.email_alert = EmailAlert.objects.get(title=models.EmailAlert.name)
             self.service.alerts.add(self.email_alert)
             self.service.save()
 
-    This class provides two helper functions to help with testing:
-        transition_service(old_status, new_status)
+    This class provides two helper functions which set some state then trigger alerts:
+        transition_service_status(old_status, new_status)
     and
         run_checks([(check, passed, acked), ...], from_service_status)
 
     If your alert type builds a message based on the state of a service's checks (which most plugins do), you should
     probably use run_checks() to simulate failing checks and verify you build your message as expected.
-    Otherwise, you can use transition_service() for a simple Service status-based test.
-
     For example, to run the Jenkins, HTTP, and TCP checks, with the states failing, acked,
     then updating the service (coming from the 'PASSING' status):
 
@@ -184,6 +187,8 @@ class PluginTestCase(APITestCase):
         # type: (List[Tuple[StatusCheck, bool, bool]], Union[None, str]) -> None
         """
         Simulates running the given checks with the given results, then updates the service (triggering alerts).
+        All previous StatusCheckResults are cleared by calling this function. A check can be listed more than once.
+        You should set up self.service.alerts before calling this.
         :param checks: list of (check, succeeded, acked) tuples
         :param from_service_status: specify the service status to transition from (service.old_overall_status), optional
         """
@@ -205,15 +210,20 @@ class PluginTestCase(APITestCase):
 
         self.service.update_status()
 
-    def transition_service(self, old_status, new_status):
+    def transition_service_status(self, old_status, new_status):
+        # type: (str, str) -> None
         """
-        Set old and current service state (ignoring check states), then trigger alert.
+        Set old and current service state (ignoring check states) to simulate the service
+        transitioning between statuses, then triggers alerts.
+        You should set up self.service.alerts before calling this.
+        :param old_status old service status (Service.PASSING_STATUS, ...)
+        :param new_status new service status (Service.ERROR_STATUS, ...)
         """
         self.service.old_overall_status = old_status
         self.service.overall_status = new_status
         self.service.last_alert_sent = None
 
         if self.service.alerts.count() == 0:
-            print("transition_service warning: self.service has no alerts registered")
+            print("transition_service_status warning: self.service has no alerts registered")
 
         self.service.alert()
