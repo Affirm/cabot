@@ -13,10 +13,8 @@ from cabot.cabotapp.models import (
     StatusCheckResult,
     Schedule,
     Shift,
-    get_duty_officers,
-    get_fallback_officers,
     UserProfile)
-from cabot.metricsapp.models import GrafanaInstance, ElasticsearchStatusCheck, ElasticsearchSource
+from cabot.metricsapp.models import ElasticsearchStatusCheck, ElasticsearchSource
 
 
 class PluginTestCase(APITestCase):
