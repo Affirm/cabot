@@ -84,16 +84,19 @@ class CheckGroupMixin(models.Model):
         abstract = True
 
     PASSING_STATUS = defs.PASSING_STATUS
+    ACKED_STATUS = defs.ACKED_STATUS
     WARNING_STATUS = defs.WARNING_STATUS
     ERROR_STATUS = defs.ERROR_STATUS
     CRITICAL_STATUS = defs.CRITICAL_STATUS
 
     CALCULATED_PASSING_STATUS = 'passing'
+    CALCULATED_ACKED_STATUS = 'acked'
     CALCULATED_INTERMITTENT_STATUS = 'intermittent'
     CALCULATED_FAILING_STATUS = 'failing'
 
     STATUSES = (
         (CALCULATED_PASSING_STATUS, CALCULATED_PASSING_STATUS),
+        (CALCULATED_ACKED_STATUS, CALCULATED_ACKED_STATUS),
         (CALCULATED_INTERMITTENT_STATUS, CALCULATED_INTERMITTENT_STATUS),
         (CALCULATED_FAILING_STATUS, CALCULATED_FAILING_STATUS),
     )
@@ -182,13 +185,18 @@ class CheckGroupMixin(models.Model):
         return self.name
 
     def most_severe(self, check_list):
-        failures = [c.importance for c in check_list]
+        # if a check is acked, instead of importance use ACKED_STATUS
+        failures = [c.importance if not c.calculated_status == Service.CALCULATED_ACKED_STATUS
+                    else self.ACKED_STATUS
+                    for c in check_list]
         if self.CRITICAL_STATUS in failures:
             return self.CRITICAL_STATUS
         if self.ERROR_STATUS in failures:
             return self.ERROR_STATUS
         if self.WARNING_STATUS in failures:
             return self.WARNING_STATUS
+        if self.ACKED_STATUS in failures:
+            return self.ACKED_STATUS
         return self.PASSING_STATUS
 
     @property
@@ -212,7 +220,7 @@ class CheckGroupMixin(models.Model):
                     if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.NOTIFICATION_INTERVAL)) \
                             < self.last_alert_sent:
                         return
-                elif self.overall_status in (self.CRITICAL_STATUS, self.ERROR_STATUS):
+                elif self.overall_status in (self.CRITICAL_STATUS, self.ERROR_STATUS, self.ACKED_STATUS):
                     if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.ALERT_INTERVAL)) \
                             < self.last_alert_sent:
                         return
@@ -603,6 +611,14 @@ class StatusCheck(PolymorphicModel):
             # can fail if a tag's name is too long
             logger.exception("Error creating/adding tags: %s", tags)
 
+        if result.succeeded:
+            Acknowledgement.close_succeeding_acks(check=self, at_time=finish)
+        else:
+            acks = Acknowledgement.get_acks_matching_result(result, at_time=finish)
+            if len(acks) > 0:
+                result.acked = True
+                result.save(update_fields=('acked',))
+
         self.last_run = finish
         self.save()
 
@@ -633,7 +649,13 @@ class StatusCheck(PolymorphicModel):
             if get_success_with_retries(recent_results, self.retries):
                 self.calculated_status = Service.CALCULATED_PASSING_STATUS
             else:
-                self.calculated_status = Service.CALCULATED_FAILING_STATUS
+                last_result = recent_results[0] if recent_results and len(recent_results) > 0 else None
+                if last_result and last_result.acked:
+                    # last result is acked, so we are too
+                    self.calculated_status = Service.CALCULATED_ACKED_STATUS
+                else:
+                    # get_success_with_retries returned False, so we're failing
+                    self.calculated_status = Service.CALCULATED_FAILING_STATUS
             self.cached_health = serialize_recent_results(recent_results)
             try:
                 StatusCheck.objects.get(pk=self.pk)
@@ -1056,6 +1078,7 @@ class StatusCheckResult(models.Model):
     error = models.TextField(null=True)
 
     tags = models.ManyToManyField(StatusCheckResultTag)
+    acked = models.BooleanField(null=False, default=False)
 
     # Jenkins specific
     job_number = models.PositiveIntegerField(null=True)
@@ -1144,6 +1167,146 @@ class Shift(models.Model):
         if self.deleted:
             deleted = ' (deleted)'
         return "%s: %s to %s%s" % (self.user.username, self.start, self.end, deleted)
+
+
+class ResultFilter(models.Model):
+    """Filter that matches StatusCheckResults."""
+    class Meta:
+        abstract = True
+
+    status_check = models.ForeignKey(StatusCheck, null=False)
+
+    MATCH_CHECK = 'C'
+    MATCH_TYPE_CHOICES = (
+        (MATCH_CHECK, 'Match check.'),
+    )
+    match_if = models.TextField(max_length=1, null=False, blank=False, default=MATCH_CHECK, choices=MATCH_TYPE_CHOICES)
+
+    def matches_result(self, result):
+        # type: (StatusCheckResult) -> bool
+
+        # status_check must match, regardless of match type
+        if result.status_check_id != self.status_check_id:
+            return False
+
+        if self.match_if == self.MATCH_CHECK:
+            return True
+
+        raise NotImplementedError()
+
+
+class Acknowledgement(ResultFilter):
+    """
+    A filter that matches on a StatusCheck (or subset of a StatusCheck, if matching on tags).
+    An Acknowledgement is considered 'open' if closed_at is set to null.
+
+    Acknowledgements "expire" (auto-close) if the expire_at parameter is set. Expiration is performed in two ways:
+      1) get_acks_matching_check() will not return checks where expire_at <= now.
+      2) A periodic celery task calls ack.close() on checks where expire_at <= now.
+
+    Acknowledgements are also automatically closed when their StatusCheck succeeds at least close_after_successes
+    times (consecutively). This is done by Acknowledgement.close_succeeding_acks(), which is called by StatusCheck.run()
+    whenever a check succeeds.
+
+    For simplicity, only one Acknowledgement can exist per StatusCheck. This is enforced by automatically closing
+    Acknowledgements that already exist for the same status check in Acknowledgement.save() (with a fixed reason).
+    """
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    created_by = models.ForeignKey(User, null=True, default=None)
+    note = models.TextField(max_length=255, blank=True,
+                            help_text='Leave a note explaining why this ack was created.')
+
+    # if 'closed_at' is set, the ack is considered 'closed'
+    closed_at = models.DateTimeField(null=True, default=None, db_index=True)
+    closed_reason = models.TextField(max_length=255, null=True, blank=False, default=None)
+
+    expire_at = models.DateTimeField(null=True, default=None, db_index=True,
+                                     help_text='After this time the acknowledgement will be automatically closed and '
+                                               'alerts will resume, even if the check is still failing.')
+    close_after_successes = models.PositiveIntegerField(null=True, default=1,
+                                                        help_text='After this many consecutive successful runs the '
+                                                                  'acknowledgement will be automatically closed. Enter '
+                                                                  '0 to disable.')
+
+    @classmethod
+    def get_acks_matching_check(cls, check, at_time=None):
+        # type: (StatusCheck, timezone.datetime) -> List[Acknowledgement]
+        """
+        :param check: check to gather acks for
+        :param at_time: only consider acks that were open at this time; leave as None to use timezone.now().
+        :returns list of Acknowledgements where ack.
+        """
+        at_time = at_time or timezone.now()
+        acks = cls.objects.filter(status_check_id=check.id)
+        return acks.exclude(created_at__gt=at_time).exclude(closed_at__lte=at_time).exclude(expire_at__lte=at_time)
+
+    @classmethod
+    def get_acks_matching_result(cls, result, at_time=None):
+        # type: (StatusCheckResult, Union[timezone.datetime, None]) -> List[Acknowledgement]
+        """
+        :param result: result to gather acks for
+        :param at_time: only consider acks that were open at this time; leave None for all currently open acks
+        :returns list of Acknowledgements where ack.matches_result(result) == True
+        """
+        return [a for a in cls.get_acks_matching_check(result.status_check, at_time) if a.matches_result(result)]
+
+    @classmethod
+    def close_succeeding_acks(cls, check, at_time=None):
+        # type: (StatusCheck, Union[timezone.datetime, None]) -> None
+        """
+        This function closes acks that have hit their close_after_successes threshold.
+        This should be called after a StatusCheck saves a new StatusCheckResult (including its tags!).
+        It technically only needs to be called after a check succeeds, but it's idempotent - you can call it whenever.
+        :param check: StatusCheck to update acks for.
+        :param at_time: Time to pass into get_acks_matching_check. Leave as None to use timezone.now().
+        """
+        for ack in cls.get_acks_matching_check(check, at_time=at_time):
+            if ack.close_after_successes:
+                # get last n results for our check, regardless of status
+                results = StatusCheckResult.objects.filter(status_check=ack.status_check)\
+                              .order_by('-time_complete', '-id').only('succeeded')[:ack.close_after_successes]
+
+                # now filter down to the results that succeeded
+                results = [r for r in results if r.succeeded]
+
+                # if we hit our threshold, this check should expire
+                if len(results) >= ack.close_after_successes:
+                    reason = 'check passed {} times'.format(len(results)) if len(results) != 1 else 'check passed'
+                    ack.close(reason)
+
+    def save(self, **kwargs):
+        # THERE CAN BE ONLY ONE. for log trails.
+        existing = Acknowledgement.objects\
+            .filter(status_check=self.status_check, closed_at__isnull=True)\
+            .exclude(pk=self.pk)
+        for old_ack in existing:
+            old_ack.close('options changed')
+
+        return super(Acknowledgement, self).save(**kwargs)
+
+    def close(self, reason):
+        # type: (str) -> None
+        """Set closed_at and closed_reason and update the DB."""
+        self.closed_at = timezone.now()
+        self.closed_reason = reason
+        self.save(update_fields=('closed_at', 'closed_reason'))
+
+    def clone(self, created_by):
+        # type: (Union[User, None]) -> Acknowledgement
+        """
+        Returns a new Acknowledgement with the same parameters as this one. The new ack is saved to the database
+        during creation (necessary because of the many-to-many relationship for tags).
+
+        Expiration dates are re-calculated relative to now, maintaining the same duration.
+
+        :param created_by django User that created the check (may be None, but may not be AnonymousUser).
+        :returns new Acknowledgement
+        """
+        ack = Acknowledgement(status_check=self.status_check, match_if=self.match_if, created_by=created_by,
+                              expire_at=timezone.now() + (self.expire_at - self.created_at) if self.expire_at else None,
+                              close_after_successes=self.close_after_successes)
+        ack.save()
+        return ack
 
 
 def get_duty_officers(schedule, at_time=None):

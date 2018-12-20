@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from contextlib import contextmanager
+
 import requests
 from django.utils import timezone
 from django.contrib.auth.models import Permission, User
@@ -9,7 +11,7 @@ from datetime import timedelta
 import json
 import os
 import socket
-from mock import Mock
+from mock import Mock, patch
 
 from cabot.cabotapp.models import (
     JenkinsStatusCheck,
@@ -193,3 +195,10 @@ def fake_calendar(*args, **kwargs):
 
 def throws_timeout(*args, **kwargs):
     raise requests.RequestException(u'something bad happened')
+
+
+@contextmanager
+def patch_field_default(cls, field_name, fake):
+    field = cls._meta.get_field(field_name)
+    with patch.object(field, 'default', new=fake):
+        yield

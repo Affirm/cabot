@@ -1,0 +1,8 @@
+{% if service.overall_status == service.ACKED_STATUS %}
+  <a href="{% url 'acks' %}#{% for check in service.all_failing_checks %}check-{{ check.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+     class="label label-warning">Acked</a>
+{% else %}
+  <span class="label label-{% if service.overall_status == service.PASSING_STATUS %}success{% else %}danger{% endif %}">
+    {{ service.overall_status|lower|capfirst }}
+  </span>
+{% endif %}

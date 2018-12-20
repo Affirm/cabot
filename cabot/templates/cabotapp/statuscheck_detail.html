@@ -12,7 +12,20 @@
     {% else %}
     <div class="col-xs-5"><h2>{{ check.name }}</h2></div>
     {% endif %}
-    <div class="col-xs-4 text-right"><h2><span class="label label-{% if check.calculated_status == 'passing' %}success{% else %}danger{% endif %}">{{ check.calculated_status|capfirst }}</span></h2></div>
+    <div class="col-xs-2 col-xs-offset-2 dropdown"><h2>
+      {% if check.calculated_status == 'passing' %}
+        <span class="label label-success">{{ check.calculated_status|capfirst }}</span>
+      {% elif check.calculated_status == 'acked' %}
+        <a href="{% url 'acks' %}#check-{{ check.id }}" class="label label-warning">{{ check.calculated_status|capfirst }}</a>
+      {% else %}
+        <a href="#" class="label label-danger dropdown-toggle" data-toggle="dropdown">{{ check.calculated_status|capfirst }} <span class="caret"></span></a>
+        <ul class="dropdown-menu">
+          {% for hours in expire_after_hours %}
+          <li><a href="{% url 'create-ack' %}?check_id={{ check.id }}&expire_after_hours={{ hours }}">Snooze check for {{ hours }}h</a></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </h2></div>
     <div class="col-xs-2 text-right"><h2>
       {% if check.polymorphic_ctype.model == 'jenkinsstatuscheck' %}
         <a href="{% jenkins_human_url check.name %}" class=""><i class="glyphicon glyphicon-link"></i></a>
@@ -63,8 +76,20 @@
       {% for result in checkresults.prefetch_related %}
         <tr>
           <td>
-            <span class="label {% if result.succeeded %}label-success{% else %}label-danger{% endif %}">{{ result.status }}
-            </span>
+            {% if result.succeeded %}
+              <span class="label label-success">{{ result.status }}</span>
+            {% elif result.acked %}
+              <a href="{% url 'acks' %}#check-{{ check.id }}" class="label label-warning">{{ result.status }}</a>
+            {% else %}
+              <div class="dropdown">
+                <a href="#" class="dropdown-toggle label label-danger" data-toggle="dropdown">{{ result.status }} <span class="caret"></span></a>
+                <ul class="dropdown-menu">
+                  {% for hours in expire_after_hours %}
+                  <li><a href="{% url 'create-ack' %}?result_id={{ check.id }}&expire_after_hours={{ hours }}">Snooze errors like this for {{ hours }}h</a></li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
           </td>
           <td>
             <a href="{% url "result" pk=result.id %}">{{ result.time|format_timestamp }}</a>
@@ -101,8 +126,10 @@
 {% load compress %}
 {{ block.super }}
 {% compress js %}
-<script type="text/coffeescript">
-
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  $('a[data-toggle="dropdown"]').dropdown();
+}, false);
 </script>
 {% endcompress %}
 {% endblock js %}

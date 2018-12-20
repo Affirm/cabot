@@ -21,7 +21,7 @@ from models import (StatusCheck,
                     get_all_duty_officers,
                     get_single_duty_officer,
                     get_all_fallback_officers,
-                    update_shifts, ScheduleProblems)
+                    update_shifts, ScheduleProblems, Acknowledgement)
 
 from tasks import run_status_check as _run_status_check
 from .decorators import cabot_login_required
@@ -480,6 +480,7 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super(StatusCheckDetailView, self).get_context_data(**kwargs)
         ctx['show_tags'] = self.request.GET.get('show_tags', False)
+        ctx['expire_after_hours'] = [2, 4, 8, 24]
         return ctx
 
     def render_to_response(self, context, *args, **kwargs):
@@ -924,3 +925,150 @@ class SendTestAlertView(LoginRequiredMixin, View):
             'pk': self.request.user.pk,
             'alerttype': kwargs['alerttype']
         }))
+
+
+class AckListView(LoginRequiredMixin, ListView):
+    model = Acknowledgement
+    context_object_name = 'acks'
+
+    def get_queryset(self):
+        return Acknowledgement.objects.filter(closed_at=None).order_by('status_check', '-id').prefetch_related()
+
+    def get_context_data(self, **kwargs):
+        ctx = super(AckListView, self).get_context_data(**kwargs)
+        threshold = timezone.now() - timezone.timedelta(days=7)
+        ctx['closed_acks'] = Acknowledgement.objects.filter(closed_at__gte=threshold).order_by('-closed_at')[:12]
+        return ctx
+
+
+class TimeFromNowField(forms.Select):
+    """DateTime field that lets the user choose from a predetermined set of times from now()"""
+    def __init__(self, times, message_format=None, choices=[], *args, **kwargs):
+        message_format = message_format or (lambda t: '{} hour{} from now'.format(t, 's' if t != 1 else ''))
+        choices += [(t, message_format(t)) for t in times]
+        kwargs['choices'] = choices
+        super(TimeFromNowField, self).__init__(*args, **kwargs)
+
+    def value_from_datadict(self, data, files, name):
+        value = data.get(name, '')
+        choice_values = [c[0] for c in self.choices]
+        if value in choice_values:
+            return value
+
+        try:
+            hours = int(value)
+        except ValueError:
+            return 'invalid-datetime'
+
+        if hours not in choice_values:
+            return 'invalid-datetime'
+        return timezone.now() + timezone.timedelta(hours=hours)
+
+
+class AckForm(GroupedModelForm):
+    class Meta(GroupedModelForm.Meta):
+        model = Acknowledgement
+        grouped_fields = (
+            ('Filter', ('status_check', 'match_if', 'note')),
+            ('Duration', ('expire_at', 'close_after_successes')),
+        )
+        widgets = {
+            'status_check': forms.Select(attrs={
+                'data-rel': 'chosen',
+                'style': 'width: 70%',
+            }),
+            'match_if': forms.RadioSelect(),
+            'note': forms.Textarea(attrs={
+                'rows': 2,
+                'style': 'width: 70%',
+            }),
+            'expire_at': TimeFromNowField(times=[1, 2, 4, 8, 12, 24],
+                                          choices=[('', 'Never (dangerous!)')],
+                                          attrs={
+                'data-rel': 'chosen',
+                'style': 'width: 70%',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super(AckForm, self).__init__(*args, **kwargs)
+        self.fields['expire_at'].required = False  # expire_at can be blank
+        self.fields['close_after_successes'].required = False  # close_after_successes can be blank
+
+
+class AckUpdateView(LoginRequiredMixin, UpdateView):
+    form_class = AckForm
+    template_name = 'cabotapp/acknowledgement_form.html'
+    model = Acknowledgement
+
+    def get_success_url(self):
+        return '{}#check-{}'.format(reverse('acks'), self.object.status_check.id)
+
+    @transaction.atomic()
+    def form_valid(self, form):
+        if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
+            form.instance.created_by = self.request.user
+
+        # always create a new instance
+        form.instance.pk = None
+
+        return super(AckUpdateView, self).form_valid(form)
+
+
+class AckCreateView(LoginRequiredMixin, CreateView):
+    form_class = AckForm
+    template_name = 'cabotapp/acknowledgement_form.html'
+
+    def get_success_url(self):
+        return '{}#check-{}'.format(reverse('acks'), self.object.status_check.id)
+
+    def get_initial(self):
+        result_id = int(self.request.GET.get('result_id', '0'))
+        check_id = int(self.request.GET.get('check_id', '0'))
+        if result_id and check_id:
+            raise ViewError('specify result_id or check_id, not both', 400)
+
+        result = StatusCheckResult.objects.get(id=result_id) if result_id else None
+        if check_id:
+            check = StatusCheck.objects.get(id=check_id)
+        elif result:
+            check = result.status_check
+        else:
+            check = None
+
+        return {
+            'status_check': check.pk if check else '',
+            'match_if': Acknowledgement.MATCH_CHECK,
+            'expire_at': self.request.GET.get('expire_after_hours', '4'),  # default to expiring after 4 hours
+            'close_after_successes': 1,
+        }
+
+    @transaction.atomic()
+    def form_valid(self, form):
+        if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
+            form.instance.created_by = self.request.user
+
+        return super(AckCreateView, self).form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super(AckCreateView, self).get_context_data(**kwargs)
+        return context
+
+
+class AckCloseView(LoginRequiredMixin, View):
+    @transaction.atomic()
+    def get(self, request, pk, **kwargs):
+        ack = Acknowledgement.objects.get(pk=int(pk))
+        user = request.user.username if request.user.pk else None
+        username = user.username if user else 'anonymous user'
+        ack.close('closed by {} through web'.format(username))
+        return HttpResponseRedirect(reverse('acks'))
+
+
+class AckReopenView(LoginRequiredMixin, View):
+    @transaction.atomic()
+    def get(self, request, pk, **kwargs):
+        ack = Acknowledgement.objects.get(pk=int(pk))
+        user = request.user if request.user.pk else None  # None if anonymous user
+        ack.clone(created_by=user)
+        return HttpResponseRedirect(reverse('acks'))

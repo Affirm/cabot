@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% load extra %}
+
+{% block title %}{{ block.super }} - Acknowledgements{% endblock title %}
+
+{% block content %}
+  <style>
+  tr.target{
+    animation: fadeHighlight 3s forwards linear;
+  }
+
+  @keyframes fadeHighlight {
+      0%   {background-color: #f5f5f5;}
+      50%   {background-color: #f5f5f5;}
+      100% {background-color: #ffffff;}
+  }
+  </style>
+
+  <div class="row">
+    <div class="col-xs-12">
+      <div class="col-xs-1"><h2><i class="glyphicon glyphicon-flag"></i></h2></div>
+      <div class="col-xs-10"><h2><span class="break"></span>Open Acknowledgements</h2></div>
+      <div class="col-xs-1"><h2><a href="{% url 'create-ack' %}" title="Create ack" class="glyphicon glyphicon-plus"></a></h2></div>
+    </div>
+  </div>
+  <hr>
+
+  {% if acks %}
+  <div class="row">
+    <div class="col-xs-12">
+        <table class="table bootstrap-datatable datatable table-hover">
+          <thead>
+            <tr>
+              <th>Check</th>
+              <th>Created by</th>
+              <th>Created at</th>
+              <th>Expires</th>
+              <th>Note</th>
+              <th></th>  {# for edit/delete buttons #}
+            </tr>
+          </thead>
+          <tbody>
+            {% regroup acks by status_check as ack_groups %}
+            {% for group in ack_groups %}
+            {% with group.grouper as check %}
+            {% for ack in group.list %}
+            <tr class="enabled check-{{ check.id }}-row">  {# <- set class to warning for colored row background #}
+              <td>
+                <span class="label label-{% if check.calculated_status == 'passing' %}success{% elif check.calculated_status == 'acked' %}warning{% else %}danger{% endif %}"></span>
+                <a href="{% url 'check' pk=check.pk %}">{{ check.name }}</a>
+              </td>
+              <td>
+                {{ ack.created_by.username|default:'Anonymous' }}  {# TODO full name + email here #}
+              </td>
+              <td>
+                {{ ack.created_at }}
+              </td>
+              <td>
+                {# this is ugly because there are no array literals in django templates :| #}
+                {% if not ack.expire_at and not ack.close_after_successes %}
+                  <i>never</i>
+                {% else %}
+                  {% if ack.expire_at %}
+                    at {{ ack.expire_at }}
+                  {% endif %}
+                  {% if ack.expire_at and ack.close_after_successes %}or{% endif %}
+                  {% if ack.close_after_successes %}
+                    after {{ ack.close_after_successes }} success{% if ack.close_after_successes > 1 %}es{% endif %}
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {{ ack.note|urlize }}
+              </td>
+              <td class="text-right">
+                <a class="btn btn-xs" href="{% url 'update-ack' pk=ack.pk %}">
+                  <i class="glyphicon glyphicon-edit" title="Update ack"></i><span class="break"></span>
+                </a>
+                <a class="btn btn-xs" href="{% url 'close-ack' pk=ack.pk %}" title="Close">
+                  <i class="glyphicon glyphicon-remove"></i><span class="break"></span>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-xs-11 col-xs-offset-1">No active acknowledgements.</div>
+  {% endif %}
+
+
+  {# recently closed acks #}
+  <br/><br/>
+  <div class="row">
+    <div class="col-xs-12">
+      <div class="col-xs-1"><h2><i class="glyphicon glyphicon-check"></i></h2></div>
+      <div class="col-xs-11"><h2><span class="break"></span>Closed Acknowledgements</h2></div>
+    </div>
+  </div>
+  <hr>
+
+  {% if closed_acks %}
+    <div class="row">
+      <div class="col-xs-12">
+        <table class="table bootstrap-datatable datatable">
+          <thead>
+          <tr>
+            <th>Check</th>
+            <th>Created by</th>
+            <th>Created at</th>
+            <th>Closed at</th>
+            <th>Reason</th>
+            <th></th>  {# for clone #}
+          </tr>
+          </thead>
+          <tbody>
+          {% for ack in closed_acks %}
+            <tr class="enabled">
+              <td>
+                <a href="{% url 'check' pk=ack.status_check.pk %}">{{ack.status_check.name}}</a>
+              </td>
+              <td title="">
+                {{ ack.created_by.username }}
+              </td>
+              <td title="">
+                {{ ack.created_at }}
+              </td>
+              <td title="">
+                {{ ack.closed_at }}
+              </td>
+              <td title="">
+                {{ ack.closed_reason }}
+              </td>
+              <td title="">
+                <a class="btn btn-xs" href="{% url 'reopen-ack' pk=ack.pk %}">
+                  <i class="glyphicon glyphicon-open" title="Reopen"></i><span class="break"></span>
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <div class="col-xs-11 col-xs-offset-1">No recently closed acknowledgements.</div>
+  {% endif %}
+{% endblock content %}
+
+{% block js %}
+  {% load compress %}
+  {% load jsonify %}
+  {{ block.super }}
+  {% compress js %}
+    <script type="text/javascript">
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.location.hash.length > 1) {
+          var classes = window.location.hash.slice(1).split(',').map(c => '.' + c + '-row');
+          $(classes.join(',')).addClass('target');
+      }
+    });
+    </script>
+  {% endcompress %}
+{% endblock js %}
