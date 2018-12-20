@@ -1179,12 +1179,15 @@ class ResultFilter(models.Model):
         abstract = True
 
     status_check = models.ForeignKey(StatusCheck, null=False)
+    tags = models.ManyToManyField(StatusCheckResultTag)
 
+    MATCH_ALL_IN = 'A'
     MATCH_CHECK = 'C'
     MATCH_TYPE_CHOICES = (
-        (MATCH_CHECK, 'Match check.'),
+        (MATCH_ALL_IN, 'Result tags are in this set of tags (recommended).'),
+        (MATCH_CHECK, 'Only match check, ignore tags.'),
     )
-    match_if = models.TextField(max_length=1, null=False, blank=False, default=MATCH_CHECK, choices=MATCH_TYPE_CHOICES)
+    match_if = models.TextField(max_length=1, null=False, blank=False, default=MATCH_ALL_IN, choices=MATCH_TYPE_CHOICES)
 
     def matches_result(self, result):
         # type: (StatusCheckResult) -> bool
@@ -1195,6 +1198,9 @@ class ResultFilter(models.Model):
 
         if self.match_if == self.MATCH_CHECK:
             return True
+        elif self.match_if == self.MATCH_ALL_IN:
+            ack_tags = self.tags.values_list('value', flat=True)
+            return all([tag in ack_tags for tag in result.tags.values_list('value', flat=True)])
 
         raise NotImplementedError()
 
@@ -1316,6 +1322,7 @@ class Acknowledgement(ResultFilter):
                               expire_at=timezone.now() + (self.expire_at - self.created_at) if self.expire_at else None,
                               close_after_successes=self.close_after_successes)
         ack.save()
+        ack.tags.add(*self.tags.all())
         return ack
 
 

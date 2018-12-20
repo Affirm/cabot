@@ -3,7 +3,7 @@ from django.core.urlresolvers import reverse
 from django.utils import timezone
 
 from cabot.cabotapp import tasks
-from cabot.cabotapp.models import Acknowledgement
+from cabot.cabotapp.models import Acknowledgement, StatusCheckResult, StatusCheckResultTag
 from cabot.cabotapp.tests.utils import LocalTestCase, fake_http_404_response, fake_http_200_response
 
 
@@ -14,10 +14,13 @@ class TestAcks(LocalTestCase):
 
         self.client.login(username=self.username, password=self.password)
 
-    def fail_http_check(self):
+    def fail_http_check(self, tags=[]):
         """runs self.http_check such that it will fail, then returns the StatusCheckResult"""
         with patch('cabot.cabotapp.models.requests.request', fake_http_404_response):
             self.http_check.run()
+
+        # add tags
+        self.http_check.last_result().tags.add(*[StatusCheckResultTag.objects.create(value=v) for v in tags])
 
         return self.http_check.last_result()
 
@@ -29,7 +32,7 @@ class TestAcks(LocalTestCase):
 
     def test_create_ack_for_result(self):
         """tests creating an ack using the create-ack endpoint with the result_id param (submits default form)"""
-        result = self.fail_http_check()
+        result = self.fail_http_check(tags=['cool_tag'])
         self.assertFalse(result.succeeded)
         self.assertFalse(result.acked)
 
@@ -42,10 +45,11 @@ class TestAcks(LocalTestCase):
         # make sure it created the ack we expect
         ack = Acknowledgement.objects.get(status_check=self.http_check)
         self.assertEquals(ack.created_by_id, self.user.id)
+        self.assertTrue(ack.tags.filter(value='cool_tag').exists())  # should have matching tags
         self.assertAlmostEqual((ack.expire_at - ack.created_at).seconds, 4 * 60 * 60)  # expiry defaults to 4 hours
         self.assertEquals(ack.close_after_successes, 1)
         self.assertTrue(ack.matches_result(result))
-        self.assertEquals(ack.match_if, Acknowledgement.MATCH_CHECK)
+        self.assertEquals(ack.match_if, Acknowledgement.MATCH_ALL_IN)
 
     def test_create_ack_for_result_triggers(self):
         """tests creating an ack using the create-ack endpoint, and make sure it actually acks on the next failure"""
@@ -199,3 +203,24 @@ class TestAcks(LocalTestCase):
 
         self.assertTrue(ack.matches_result(http_result))
         self.assertFalse(ack.matches_result(jenkins_result))
+
+    def test_match_all_in(self):
+        tags = [StatusCheckResultTag.objects.get_or_create(value='tag' + str(i))[0] for i in range(3)]
+        ack = Acknowledgement(status_check=self.http_check, match_if=Acknowledgement.MATCH_ALL_IN)
+        ack.save()
+        ack.tags.add(tags[0], tags[1])
+
+        now = timezone.now()
+        result = StatusCheckResult(check=self.http_check, succeeded=False, time=now, time_complete=now)
+        result.save()
+
+        # no tags matches
+        self.assertTrue(ack.matches_result(result))
+
+        # 1 matching tag matches
+        result.tags.add(tags[0])
+        self.assertTrue(ack.matches_result(result))
+
+        # 1 matching, 1 not should NOT match
+        result.tags.add(tags[2])
+        self.assertFalse(ack.matches_result(result))
