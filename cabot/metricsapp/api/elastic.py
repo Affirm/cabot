@@ -24,7 +24,7 @@ def create_es_client(urls, timeout=settings.ELASTICSEARCH_TIMEOUT):
     :return: a new elasticsearch-py client
     """
     urls = [url.strip() for url in urls.split(',')]
-    return Elasticsearch(urls, timeout=timeout)
+    return Elasticsearch(urls, timeout=timeout, retry_on_timeout=True)
 
 
 def validate_query(query, msg_prefix=defs.ES_VALIDATION_MSG_PREFIX):
