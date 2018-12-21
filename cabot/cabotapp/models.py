@@ -493,8 +493,11 @@ class StatusCheck(PolymorphicModel):
 
             # last_enabled may be None when this change is first deployed. Set it to now and log a warning.
             if counter.last_enabled is None:
+                # NB: since we are updating last_enabled outside of a transaction, there's a possibility
+                # that we clobber existing data. However, we should almost never enter this if-block, and
+                # worst case we clobber a recent value with a nearly identical value.
                 counter.last_enabled = timezone.now()
-                counter.save()
+                counter.save(update_fields=["last_enabled"])
                 logger.warning("activity_counter id={} last_enabled is None, setting to now".format(counter.id))
 
             # Compute the window during which checks may run, as the last_enable/disabled times,
