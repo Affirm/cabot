@@ -571,6 +571,9 @@ class ActivityCounter(models.Model):
     '''
     Model containing the current activity-counter value for a check with
     use_activity_counter set to True.
+
+    IMPORTANT: modifying the counter should only be done inside of a transaction.
+    Use `ActivityCounter.objects.select_for_update().get(...)` to avoid concurrency issues.
     '''
     status_check = models.OneToOneField(
         StatusCheck,
@@ -582,12 +585,20 @@ class ActivityCounter(models.Model):
     last_disabled = models.DateTimeField(null=True)
 
     def increment_and_save(self):
+        '''
+        Increment the counter, update last_enabled if the count is going from 0 to 1,
+        and save the model.
+        '''
         if self.count == 0:
             self.last_enabled = timezone.now()
         self.count += 1
         self.save()
 
     def decrement_and_save(self):
+        '''
+        Decrement the counter to a minimum of zero. Update last_disabled if going from
+        1 to 0. Save the model if it changed.
+        '''
         if self.count == 1:
             self.last_disabled = timezone.now()
         if self.count > 0:
@@ -595,6 +606,9 @@ class ActivityCounter(models.Model):
             self.save()
 
     def reset_and_save(self):
+        '''
+        If the counter is positive, set it to zero, update last_disabled, and save.
+        '''
         if self.count > 0:
             self.last_disabled = timezone.now()
             self.count = 0
