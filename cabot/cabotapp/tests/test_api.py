@@ -533,6 +533,9 @@ class TestActivityCounterAPI(APITransactionTestCase):
         self.assertFalse(self.http_check.should_run())
 
     def test_check_should_run_should_set_last_enabled_if_null(self):
+        # This tests the behavior of should_run(), and under what circumstances
+        # it should set the last_enabled field.
+
         # Create the activity_counter
         self._set_activity_counter(False, 0)
         counter = self._get_activity_counter()
@@ -541,20 +544,20 @@ class TestActivityCounterAPI(APITransactionTestCase):
         self.assertIsNone(counter.last_enabled)
 
         # Because use_activity_counter is False, should_run() will not set last_enabled
-        self.http_check.should_run()
+        self.assertTrue(self.http_check.should_run())
         self.assertIsNone(counter.last_enabled)
 
         # Enable activity counters. Because the count is zero, we still will not set last_enabled
         self.http_check.use_activity_counter = True
         self.http_check.save()
         self.assertEqual(counter.count, 0)
-        self.http_check.should_run()
+        self.assertFalse(self.http_check.should_run())
         self.assertIsNone(counter.last_enabled)
 
         # Once count is positive and we need last_enabled, it'll be set
         counter.count = 4
         counter.save()
-        self.http_check.should_run()
+        self.assertTrue(self.http_check.should_run())
         counter = self._get_activity_counter()
         self.assertIsNotNone(counter.last_enabled)
 
