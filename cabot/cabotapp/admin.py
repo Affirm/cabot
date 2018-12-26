@@ -6,6 +6,7 @@ from .models import (
     ServiceStatusSnapshot,
     StatusCheck,
     StatusCheckResult,
+    ActivityCounter,
     Schedule,
     HipchatInstance,
     MatterMostInstance,
@@ -18,6 +19,7 @@ admin.site.register(Service)
 admin.site.register(ServiceStatusSnapshot)
 admin.site.register(StatusCheck)
 admin.site.register(StatusCheckResult)
+admin.site.register(ActivityCounter)
 admin.site.register(AlertPlugin)
 admin.site.register(AlertPluginUserData)
 admin.site.register(Schedule)
