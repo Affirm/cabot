@@ -486,23 +486,27 @@ class StatusCheck(PolymorphicModel):
             counters = ActivityCounter.objects.filter(status_check=self)
 
             # SPECIAL CASE #1:
-            # If the check's activity counter doesn't exist, or does exist but was never incremented,
-            # then the check should not run.
-            if len(counters) == 0 or (counters[0].count == 0 and counters[0].last_enabled is None):
+            # If the check's activity counter doesn't exist, the check should not run
+            if len(counters) == 0:
                 return False
 
             counter = counters[0]
 
             # SPECIAL CASE #2:
-            # If last_enabled is None (and the counter is positive, which we can assume from special case #1),
-            # then set last_enabled to now. This should only happen once, when this code is first deployed.
+            # If last_enabled is None, then either:
+            # - If count == 0, the check should not run, as there is no record of the counter being incremented.
+            # - If count > 0, set last_enabled to now to ensure it is not None. This should only happen once,
+            #   when this code is first deployed.
             if counter.last_enabled is None:
-                # NB: since we are updating last_enabled outside of a transaction, there's a possibility
-                # that we clobber existing data. However, we should almost never enter this if-block, and
-                # worst case we clobber a recent value with a nearly identical value.
-                counter.last_enabled = timezone.now()
-                counter.save(update_fields=["last_enabled"])
-                logger.warning("activity_counter id={} last_enabled is None, setting to now".format(counter.id))
+                if counter.count == 0:
+                    return False
+                else:
+                    # NB: since we are updating last_enabled outside of a transaction, there's a possibility
+                    # that we clobber existing data. However, we should almost never enter this if-block, and
+                    # worst case we clobber a recent value with a nearly identical value.
+                    counter.last_enabled = timezone.now()
+                    counter.save(update_fields=["last_enabled"])
+                    logger.warning("activity_counter id={} last_enabled is None, setting to now".format(counter.id))
 
             # For activity-counted checks, we need to determine if the current time is within the
             # window during which the check may run:
