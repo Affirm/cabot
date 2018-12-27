@@ -862,6 +862,7 @@ class ActivityCounterView(View):
         data = {
             'check.id': check.id,
             'check.name': check.name,
+            'check.run_delay': check.run_delay,
             'counter.count': counter.count,
             'counter.enabled': check.use_activity_counter,
             'counter.last_enabled': format_datetime(counter.last_enabled),

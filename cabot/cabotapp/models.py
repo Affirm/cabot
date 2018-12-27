@@ -483,15 +483,19 @@ class StatusCheck(PolymorphicModel):
 
         # Handle special cases for activity-counted checks, which may have run delays
         if self.use_activity_counter:
-            # If the counter value is zero, don't run
             counters = ActivityCounter.objects.filter(status_check=self)
-            if len(counters) == 0 or counters[0].count <= 0:
-                logger.info("Skipping check '{}', activity counter is zero".format(self.name))
+
+            # SPECIAL CASE #1:
+            # If the check's activity counter doesn't exist, or does exist but was never incremented,
+            # then the check should not run.
+            if len(counters) == 0 or (counters[0].count == 0 and counters[0].last_enabled is None):
                 return False
 
             counter = counters[0]
 
-            # last_enabled may be None when this change is first deployed. Set it to now and log a warning.
+            # SPECIAL CASE #2:
+            # If last_enabled is None (and the counter is positive, which we can assume from special case #1),
+            # then set last_enabled to now. This should only happen once, when this code is first deployed.
             if counter.last_enabled is None:
                 # NB: since we are updating last_enabled outside of a transaction, there's a possibility
                 # that we clobber existing data. However, we should almost never enter this if-block, and
@@ -500,11 +504,14 @@ class StatusCheck(PolymorphicModel):
                 counter.save(update_fields=["last_enabled"])
                 logger.warning("activity_counter id={} last_enabled is None, setting to now".format(counter.id))
 
-            # Compute the window during which checks may run, as the last_enable/disabled times,
-            # plus the run-delay
-            counter = counters[0]
+            # For activity-counted checks, we need to determine if the current time is within the
+            # window during which the check may run:
+            #
+            #      (last_enabled+run_delay) <= current_time <= (last_disabled+run_delay)
+            #
+            # Note that we don't need to check the counter value; it is used elsewhere when setting
+            # last_enabled and last_disabled.
             mins_delay = timedelta(minutes=self.run_delay)
-
             window_start = counter.last_enabled + mins_delay
             window_end = (counter.last_disabled + mins_delay) if counter.last_disabled else None
 
@@ -519,7 +526,7 @@ class StatusCheck(PolymorphicModel):
             if window_end and window_end > window_start and now > window_end:
                 return False
 
-            # At this point the check can run if it hasn't run within the frequency
+            # The last thing to verify is that the check hasn't run within the frequency
 
         # Run if we haven't run at all
         if not self.last_run:
