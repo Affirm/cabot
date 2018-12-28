@@ -485,14 +485,12 @@ class StatusCheck(PolymorphicModel):
         if self.use_activity_counter:
             counters = ActivityCounter.objects.filter(status_check=self)
 
-            # SPECIAL CASE #1:
             # If the check's activity counter doesn't exist, the check should not run
             if len(counters) == 0:
                 return False
 
             counter = counters[0]
 
-            # SPECIAL CASE #2:
             # If last_enabled is None, then either:
             # - If count == 0, the check should not run, as there is no record of the counter being incremented.
             # - If count > 0, set last_enabled to now to ensure it is not None. This should only happen once,
@@ -513,8 +511,8 @@ class StatusCheck(PolymorphicModel):
             #
             #      (last_enabled+run_delay) <= current_time <= (last_disabled+run_delay)
             #
-            # Note that we don't need to check the counter value; it is used elsewhere when setting
-            # last_enabled and last_disabled.
+            # Note that we don't need to check the counter value; it is used by ActivityCounter instance
+            # methods to determine when to update last_enabled and last_disabled.
             mins_delay = timedelta(minutes=self.run_delay)
             window_start = counter.last_enabled + mins_delay
             window_end = (counter.last_disabled + mins_delay) if counter.last_disabled else None
