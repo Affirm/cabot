@@ -191,7 +191,8 @@ class HttpStatusCheckForm(StatusCheckForm):
             ('Request', ('endpoint', 'frequency', 'retries', 'http_method', 'http_params', 'http_body')),
             ('Response Validation', ('status_code', 'text_match', 'header_match', 'timeout')),
             ('Authentication', ('username', 'password')),
-            ('Advanced', ('allow_http_redirects', 'verify_ssl_certificate', 'use_activity_counter', 'runbook')),
+            ('Advanced', ('allow_http_redirects', 'verify_ssl_certificate', 'use_activity_counter', 'run_delay',
+                          'runbook')),
         )
         widgets = dict(**base_widgets)
         widgets.update({
@@ -222,7 +223,7 @@ class JenkinsStatusCheckForm(StatusCheckForm):
         grouped_fields = (
             ('Basic', ('name', 'active', 'importance', 'service_set')),
             ('Jenkins', ('max_queued_build_time', 'max_build_failures', 'retries')),
-            ('Advanced', ('use_activity_counter', 'runbook')),
+            ('Advanced', ('use_activity_counter', 'run_delay', 'runbook')),
         )
         widgets = dict(**base_widgets)
 
@@ -233,7 +234,7 @@ class TCPStatusCheckForm(StatusCheckForm):
         grouped_fields = (
             ('Basic', ('name', 'active', 'importance', 'service_set')),
             ('TCP', ('address', 'port', 'timeout', 'frequency', 'retries')),
-            ('Advanced', ('use_activity_counter', 'runbook')),
+            ('Advanced', ('use_activity_counter', 'run_delay', 'runbook')),
         )
         widgets = dict(**base_widgets)
         widgets.update({
@@ -861,6 +862,7 @@ class ActivityCounterView(View):
         data = {
             'check.id': check.id,
             'check.name': check.name,
+            'check.run_delay': check.run_delay,
             'counter.count': counter.count,
             'counter.enabled': check.use_activity_counter,
             'counter.last_enabled': format_datetime(counter.last_enabled),
