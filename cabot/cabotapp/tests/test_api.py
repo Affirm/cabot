@@ -581,9 +581,8 @@ class TestActivityCounterAPI(APITransactionTestCase):
 
         # Finally, reset the counter and set the last_disabled time to last_enabled + 60.
         # The check should not run if after the disabled time (last_enabled + 90).
-        counter.last_disabled = counter.last_enabled + timedelta(minutes=60)
-        counter.count = 0
-        counter.save()
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=60)
+        counter.reset_and_save()
 
         # - Though the counter is 0, the current time is still less than last_disabled + run_delay,
         #   so the check should still run.

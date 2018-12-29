@@ -223,7 +223,7 @@ class JenkinsStatusCheckForm(StatusCheckForm):
         grouped_fields = (
             ('Basic', ('name', 'active', 'importance', 'service_set')),
             ('Jenkins', ('max_queued_build_time', 'max_build_failures', 'retries')),
-            ('Advanced', ('use_activity_counter', 'runbook')),
+            ('Advanced', ('use_activity_counter', 'run_delay', 'runbook')),
         )
         widgets = dict(**base_widgets)
 

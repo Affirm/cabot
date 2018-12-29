@@ -483,13 +483,11 @@ class StatusCheck(PolymorphicModel):
 
         # Handle special cases for activity-counted checks, which may have run delays
         if self.use_activity_counter:
-            counters = ActivityCounter.objects.filter(status_check=self)
-
-            # If the check's activity counter doesn't exist, the check should not run
-            if len(counters) == 0:
+            # Get the check's counter. If it doesn't exist, the check should not run.
+            try:
+                counter = ActivityCounter.objects.get(status_check=self)
+            except ActivityCounter.DoesNotExist:
                 return False
-
-            counter = counters[0]
 
             # If last_enabled is None, then either:
             # - If count == 0, the check should not run, as there is no record of the counter being incremented.
