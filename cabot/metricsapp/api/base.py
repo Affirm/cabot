@@ -150,18 +150,18 @@ def run_metrics_check(check):
         message = series.get('error_message')
         logger.exception('Error fetching metrics: {}: {}'.format(series.get('error_code'), message))
         error = 'Error fetching metric from source: {}'.format(message)
-        return StatusCheckResult(check=check, succeeded=False, error=error)
+        return StatusCheckResult(status_check=check, succeeded=False, error=error)
 
     # If the series is empty, apply the empty-series handler
     if series['data'] == []:
         if check.on_empty_series == defs.ON_EMPTY_SERIES_PASS:
-            return StatusCheckResult(check=check, succeeded=True, error='SUCCESS: no data')
+            return StatusCheckResult(status_check=check, succeeded=True, error='SUCCESS: no data')
         if check.on_empty_series == defs.ON_EMPTY_SERIES_WARN:
             check.importance = Service.WARNING_STATUS
-            return StatusCheckResult(check=check, succeeded=False, error='WARNING: no data')
+            return StatusCheckResult(status_check=check, succeeded=False, error='WARNING: no data')
         if check.on_empty_series == defs.ON_EMPTY_SERIES_FAIL:
             check.importance = check.high_alert_importance
-            return StatusCheckResult(check=check, succeeded=False, error='{}: no data'.format(check.importance))
+            return StatusCheckResult(status_check=check, succeeded=False, error='{}: no data'.format(check.importance))
 
     # Ignore all checks before the following start time
     start_time = time.time() - check.time_range * 60
@@ -174,8 +174,8 @@ def run_metrics_check(check):
         return True
 
     # We'll populate and return these results objects when we find alerts
-    result = StatusCheckResult(check=check, succeeded=True)
-    warn_result = StatusCheckResult(check=check, succeeded=True)
+    result = StatusCheckResult(status_check=check, succeeded=True)
+    warn_result = StatusCheckResult(status_check=check, succeeded=True)
 
     parsed_series = series['data']
     logger.info('Processing series {}'.format(str(parsed_series)))

@@ -470,11 +470,11 @@ class StatusCheck(PolymorphicModel):
     def recent_results(self):
         # Not great to use id but we are getting lockups, possibly because of something to do with index
         # on time_complete
-        return StatusCheckResult.objects.filter(check=self).order_by('-id').defer('raw_data')[:10]
+        return StatusCheckResult.objects.filter(status_check=self).order_by('-id').defer('raw_data')[:10]
 
     def last_result(self):
         try:
-            return StatusCheckResult.objects.filter(check=self).order_by('-id').defer('raw_data')[0]
+            return StatusCheckResult.objects.filter(status_check=self).order_by('-id').defer('raw_data')[0]
         except:
             return None
 
@@ -541,11 +541,11 @@ class StatusCheck(PolymorphicModel):
         try:
             result = self._run()
         except SoftTimeLimitExceeded as e:
-            result = StatusCheckResult(check=self)
+            result = StatusCheckResult(status_check=self)
             result.error = u'Error in performing check: Celery soft time limit exceeded'
             result.succeeded = False
         except Exception as e:
-            result = StatusCheckResult(check=self)
+            result = StatusCheckResult(status_check=self)
             result.error = u'Error in performing check: %s' % (e,)
             result.succeeded = False
         finish = timezone.now()
@@ -745,7 +745,7 @@ class HttpStatusCheck(StatusCheck):
     )
 
     def _run(self):
-        result = StatusCheckResult(check=self)
+        result = StatusCheckResult(status_check=self)
         if self.username:
             auth = (self.username, self.password)
         else:
@@ -844,7 +844,7 @@ class JenkinsStatusCheck(StatusCheck):
         return 'Job failing on Jenkins'
 
     def _run(self):
-        result = StatusCheckResult(check=self)
+        result = StatusCheckResult(status_check=self)
         try:
             status = get_job_status(self.name)
             active = status['active']
@@ -932,7 +932,7 @@ class TCPStatusCheck(StatusCheck):
         if this call succeeds (i.e. returns without raising an exception and/or
         timeing out), we can conclude that the TCP endpoint is valid.
         """
-        result = StatusCheckResult(check=self)
+        result = StatusCheckResult(status_check=self)
 
         try:
             socket.create_connection((self.address, self.port), self.timeout)
@@ -952,7 +952,7 @@ class StatusCheckResult(models.Model):
     Checks don't have to use all the fields, so most should be
     nullable
     """
-    check = models.ForeignKey(StatusCheck)
+    status_check = models.ForeignKey(StatusCheck)
     time = models.DateTimeField(null=False, db_index=True)
     time_complete = models.DateTimeField(null=True, db_index=True)
     raw_data = models.TextField(null=True)
@@ -963,7 +963,7 @@ class StatusCheckResult(models.Model):
     job_number = models.PositiveIntegerField(null=True)
 
     def __unicode__(self):
-        return '%s: %s @%s' % (self.status, self.check.name, self.time)
+        return '%s: %s @%s' % (self.status, self.status_check.name, self.time)
 
     @property
     def status(self):

@@ -229,7 +229,7 @@ class PluginTestCase(APITestCase):
 
         for check, succeeded, acked in checks:
             now = timezone.now()
-            result = StatusCheckResult(check=check, time=now, time_complete=now, succeeded=succeeded)
+            result = StatusCheckResult(status_check=check, time=now, time_complete=now, succeeded=succeeded)
             if hasattr(StatusCheckResult, 'acked'):  # forwards-compatible with acks
                 result.acked = acked
             result.save()
