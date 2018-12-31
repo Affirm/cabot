@@ -1,12 +1,12 @@
 import six
-from django.template import RequestContext, loader
+from django.template import loader
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse, HttpResponseRedirect
 from django.core.urlresolvers import reverse_lazy
 from django.conf import settings
 
-from cabot.cabotapp.alert import AlertPlugin, update_alert_plugins
+from cabot.cabotapp.alert import AlertPlugin
 from models import (StatusCheck,
                     JenkinsStatusCheck,
                     HttpStatusCheck,
@@ -110,13 +110,13 @@ def subscriptions(request):
     t = loader.get_template('cabotapp/subscriptions.html')
     services = Service.objects.all()
     users = User.objects.filter(is_active=True)
-    c = RequestContext(request, {
+    c = {
         'services': services,
         'users': users,
         'duty_officers': get_all_duty_officers(),
         'fallback_officers': get_all_fallback_officers(),
-    })
-    return HttpResponse(t.render(c))
+    }
+    return HttpResponse(t.render(c, request))
 
 
 @cabot_login_required
@@ -537,6 +537,7 @@ class UserProfileUpdateAlert(LoginRequiredMixin, UpdateView):
         class AlertPreferencesForm(forms.ModelForm):
             class Meta:
                 model = type(self.object)
+                exclude = []
 
         return AlertPreferencesForm
 
@@ -628,8 +629,6 @@ class ServiceDetailView(LoginRequiredMixin, DetailView):
 class ServiceCreateView(LoginRequiredMixin, CreateView):
     model = Service
     form_class = ServiceForm
-
-    update_alert_plugins()
 
     def get_success_url(self):
         return reverse('service', kwargs={'pk': self.object.id})

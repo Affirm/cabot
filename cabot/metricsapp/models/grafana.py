@@ -75,8 +75,8 @@ class GrafanaDataSource(models.Model):
         max_length=30,
         help_text='The name for a data source in grafana (e.g. metrics-stage")'
     )
-    grafana_instance = models.ForeignKey('GrafanaInstance')
-    metrics_source_base = models.ForeignKey('MetricsSourceBase')
+    grafana_instance = models.ForeignKey('GrafanaInstance', on_delete=models.CASCADE)
+    metrics_source_base = models.ForeignKey('MetricsSourceBase', on_delete=models.CASCADE)
 
     def __unicode__(self):
         return '{} ({}, {})'.format(self.grafana_source_name, self.metrics_source_base.name,
@@ -118,7 +118,7 @@ class GrafanaPanel(models.Model):
             logger.error('Failed to get Grafana panel image')
             return None
 
-    grafana_instance = models.ForeignKey('GrafanaInstance')
+    grafana_instance = models.ForeignKey('GrafanaInstance', on_delete=models.CASCADE)
     dashboard_uri = models.CharField(max_length=40)
     panel_id = models.IntegerField()
     series_ids = models.CharField(max_length=50)

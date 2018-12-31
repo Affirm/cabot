@@ -1,8 +1,8 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import Schedule
-from .tasks import reset_shifts_and_problems
+from cabot.cabotapp.models import Schedule
+from cabot.cabotapp.tasks import reset_shifts_and_problems
 
 
 @receiver(post_save, sender=Schedule, dispatch_uid="reset_shifts_and_problems")

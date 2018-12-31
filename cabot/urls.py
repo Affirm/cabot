@@ -1,7 +1,7 @@
 import logging
 
 from importlib import import_module
-from django.conf.urls import patterns, include, url
+from django.conf.urls import include, url
 from django.conf import settings
 from cabot.cabotapp.views import (
     run_status_check,
@@ -65,8 +65,7 @@ admin.autodiscover()
 
 logger = logging.getLogger(__name__)
 
-urlpatterns = patterns(
-    '',
+urlpatterns = [
     url(r'^$',
         view=RedirectView.as_view(url='services/', permanent=False),
         name='dashboard'),
@@ -230,7 +229,7 @@ urlpatterns = patterns(
     url(r'^complete/(?P<backend>[^/]+)/$', AuthComplete.as_view()),
     url(r'^login-error/$', LoginError.as_view()),
     url(r'', include('social.apps.django_app.urls', namespace='social')),
-)
+]
 
 
 def append_plugin_urls():
@@ -244,6 +243,6 @@ def append_plugin_urls():
         except ImportError:
             pass
         else:
-            urlpatterns += patterns('', url(r'^plugins/%s/' % plugin, include('%s.urls' % plugin)))
+            urlpatterns.append(url(r'^plugins/%s/' % plugin, include('%s.urls' % plugin)))
 
 append_plugin_urls()

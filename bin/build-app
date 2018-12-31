@@ -3,6 +3,5 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-python manage.py syncdb --noinput
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput

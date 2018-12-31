@@ -2,10 +2,10 @@ from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.core.validators import MaxValueValidator
 from django.db import models, transaction
-from polymorphic import PolymorphicModel
+from polymorphic.models import PolymorphicModel
 
 from .jenkins import get_job_status
 from .alert import (send_alert, AlertPluginUserData)
@@ -111,7 +111,6 @@ class CheckGroupMixin(models.Model):
     schedules = models.ManyToManyField(
         'Schedule',
         blank=True,
-        null=True,
         help_text='Oncall schedule to be alerted.'
     )
     alerts_enabled = models.BooleanField(
@@ -154,7 +153,8 @@ class CheckGroupMixin(models.Model):
         'HipchatInstance',
         null=True,
         blank=True,
-        help_text='Hipchat instance to send Hipchat alerts to (can be none if Hipchat alerts disabled).'
+        help_text='Hipchat instance to send Hipchat alerts to (can be none if Hipchat alerts disabled).',
+        on_delete=models.SET_NULL
     )
     hipchat_room_id = models.PositiveIntegerField(
         null=True,
@@ -165,7 +165,8 @@ class CheckGroupMixin(models.Model):
         'MatterMostInstance',
         null=True,
         blank=True,
-        help_text='Mattermost instance to send alerts to (can be blank if Mattermost alerts are disabled).'
+        help_text='Mattermost instance to send alerts to (can be blank if Mattermost alerts are disabled).',
+        on_delete=models.SET_NULL
     )
     mattermost_channel_id = models.CharField(
         null=True,
@@ -300,7 +301,8 @@ class Schedule(models.Model):
         User,
         blank=True,
         null=True,
-        help_text='Fallback officer to alert if the duty officer is unavailable.'
+        help_text='Fallback officer to alert if the duty officer is unavailable.',
+        on_delete=models.SET_NULL
     )
 
     def get_edit_url(self):
@@ -392,7 +394,7 @@ class Snapshot(models.Model):
 
 
 class ServiceStatusSnapshot(Snapshot):
-    service = models.ForeignKey(Service, related_name='snapshots')
+    service = models.ForeignKey(Service, related_name='snapshots', on_delete=models.CASCADE)
 
     def __unicode__(self):
         return u"%s: %s" % (self.service.name, self.overall_status)
@@ -449,7 +451,7 @@ class StatusCheck(PolymorphicModel):
                   'A run delay can alleviate race conditions between an activity-counted check first running, '
                   'and metrics being available.'
     )
-    created_by = models.ForeignKey(User, null=True)
+    created_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     calculated_status = models.CharField(
         max_length=50, choices=Service.STATUSES, default=Service.CALCULATED_PASSING_STATUS, blank=True)
     last_run = models.DateTimeField(null=True)
@@ -952,7 +954,7 @@ class StatusCheckResult(models.Model):
     Checks don't have to use all the fields, so most should be
     nullable
     """
-    status_check = models.ForeignKey(StatusCheck)
+    status_check = models.ForeignKey(StatusCheck, on_delete=models.CASCADE)
     time = models.DateTimeField(null=False, db_index=True)
     time_complete = models.DateTimeField(null=True, db_index=True)
     raw_data = models.TextField(null=True)
@@ -994,7 +996,7 @@ class StatusCheckResult(models.Model):
 
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, related_name='profile')
+    user = models.OneToOneField(User, related_name='profile', on_delete=models.CASCADE)
 
     def user_data(self):
         for user_data_subclass in AlertPluginUserData.__subclasses__():
@@ -1034,10 +1036,10 @@ def get_events(schedule):
 class Shift(models.Model):
     start = models.DateTimeField()
     end = models.DateTimeField()
-    user = models.ForeignKey(User)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     uid = models.TextField()
     deleted = models.BooleanField(default=False)
-    schedule = models.ForeignKey('Schedule', default=1)
+    schedule = models.ForeignKey('Schedule', default=1, on_delete=models.CASCADE)
 
     def __unicode__(self):
         deleted = ''
