@@ -5,6 +5,8 @@ from rest_framework import status, HTTP_HEADER_ENCODING
 from rest_framework.reverse import reverse as api_reverse
 import base64
 import json
+from datetime import datetime, timedelta
+from mock import patch
 
 from rest_framework.test import APITransactionTestCase
 
@@ -342,28 +344,43 @@ class TestAPIFiltering(LocalTestCase):
 
 
 class TestActivityCounterAPI(APITransactionTestCase):
+    LAST_ENABLED_TIME = datetime(2018, 8, 15, 1, 1, 1)
+    LAST_DISABLED_TIME = datetime(2018, 8, 15, 2, 2, 2)
+
     def setUp(self):
         self.http_check = HttpStatusCheck.objects.create(
             id=10102,
             name='Http Check',
+            frequency=5,
         )
-
         super(TestActivityCounterAPI, self).setUp()
 
     def _set_activity_counter(self, enabled, count):
         '''Utility function to set the activity counter for the http check'''
         self.http_check.use_activity_counter = enabled
         self.http_check.save()
-        ActivityCounter.objects.create(status_check=self.http_check, count=count)
+        ActivityCounter.objects.create(
+            status_check=self.http_check,
+            count=count,
+            last_enabled=(None if count == 0 else self.LAST_ENABLED_TIME),
+            last_disabled=None,
+        )
+
+    def _get_activity_counter(self):
+        'Return the activity counter for the http check. Will look it up in the DB.'
+        return ActivityCounter.objects.get(status_check=self.http_check,)
 
     def test_counter_get(self):
-        self._set_activity_counter(True, 1)
+        self._set_activity_counter(True, 0)
         url = '/api/status-checks/activity-counter?'
         expected_body = {
             'check.id': 10102,
             'check.name': 'Http Check',
-            'counter.count': 1,
+            'check.run_delay': 0,
+            'counter.count': 0,
             'counter.enabled': True,
+            'counter.last_enabled': '',
+            'counter.last_disabled': '',
         }
         # Get by id
         response = self.client.get(url + 'id=10102')
@@ -384,32 +401,57 @@ class TestActivityCounterAPI(APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def test_counter_incr(self):
-        self._set_activity_counter(True, 1)
-        url = '/api/status-checks/activity-counter?id=10102&action=incr'
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_counter_incr(self, mock_now):
+        mock_now.return_value = self.LAST_ENABLED_TIME
+        self._set_activity_counter(True, 0)
+        url = '/api/status-checks/activity-counter?id=10102'
         expected_body = {
             'check.id': 10102,
             'check.name': 'Http Check',
-            'counter.count': 2,
+            'check.run_delay': 0,
+            'counter.count': 0,
             'counter.enabled': True,
-            'detail': 'counter incremented to 2',
+            'counter.last_enabled': '',
+            'counter.last_disabled': '',
         }
+        # Counter starts at zero
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(json.loads(response.content), expected_body)
-        self.assertEqual(StatusCheck.objects.filter(id=10102)[0].activity_counter.count, 2)
+        # Increment counter to one
+        expected_body['counter.count'] = 1
+        expected_body['counter.last_enabled'] = '2018-08-15 01:01:01'
+        expected_body['detail'] = 'counter incremented to 1'
+        response = self.client.get(url + '&action=incr')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(json.loads(response.content), expected_body)
+        self.assertEqual(StatusCheck.objects.filter(id=10102)[0].activity_counter.count, 1)
 
-    def test_counter_decr(self):
-        self._set_activity_counter(True, 1)
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_counter_decr(self, mock_now):
+        mock_now.return_value = self.LAST_DISABLED_TIME
+        self._set_activity_counter(True, 2)
         url = '/api/status-checks/activity-counter?id=10102&action=decr'
         expected_body = {
             'check.id': 10102,
             'check.name': 'Http Check',
-            'counter.count': 0,
+            'check.run_delay': 0,
+            'counter.count': 1,
             'counter.enabled': True,
-            'detail': 'counter decremented to 0',
+            'counter.last_enabled': '2018-08-15 01:01:01',
+            'counter.last_disabled': '',
+            'detail': 'counter decremented to 1',
         }
-        # Decrement counter from one to zero
+        # Decrement counter from two to one
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(json.loads(response.content), expected_body)
+        self.assertEqual(StatusCheck.objects.filter(id=10102)[0].activity_counter.count, 1)
+        # Decrement counter from two to zero
+        expected_body['counter.count'] = 0
+        expected_body['counter.last_disabled'] = '2018-08-15 02:02:02'
+        expected_body['detail'] = 'counter decremented to 0'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(json.loads(response.content), expected_body)
@@ -419,14 +461,19 @@ class TestActivityCounterAPI(APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(json.loads(response.content), expected_body)
 
-    def test_counter_reset(self):
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_counter_reset(self, mock_now):
+        mock_now.return_value = self.LAST_DISABLED_TIME
         self._set_activity_counter(True, 11)
         url = '/api/status-checks/activity-counter?id=10102&action=reset'
         expected_body = {
             'check.id': 10102,
             'check.name': 'Http Check',
+            'check.run_delay': 0,
             'counter.count': 0,
             'counter.enabled': True,
+            'counter.last_enabled': '2018-08-15 01:01:01',
+            'counter.last_disabled': '2018-08-15 02:02:02',
             'detail': 'counter reset to 0',
         }
         response = self.client.get(url)
@@ -452,6 +499,98 @@ class TestActivityCounterAPI(APITransactionTestCase):
         # DoesNotExist exception.
         self.http_check.use_activity_counter = True
         self.http_check.save()
+        self.assertFalse(self.http_check.should_run())
+
+    def test_check_should_not_run_when_activity_counter_is_default(self):
+        # Specifically, the check should not run when last_enabled is None and count is 0
+        self._set_activity_counter(True, 0)
+        counter = self._get_activity_counter()
+        self.assertTrue(self.http_check.use_activity_counter)
+        self.assertEqual(counter.count, 0)
+        self.assertIsNone(counter.last_enabled)
+        self.assertFalse(self.http_check.should_run())
+
+    def test_existing_check_should_run_if_counter_is_positive(self):
+        # By 'existing' I mean that the counter value is > 0, but the last_enabled
+        # and last_disabled fields are not (yet) set. In this case the check should
+        # still run.
+        self.http_check.use_activity_counter = True
+        self.http_check.save()
+        counter = ActivityCounter.objects.create(status_check=self.http_check, count=4)
+        self.assertIsNone(counter.last_enabled)
+        self.assertIsNone(counter.last_disabled)
+        self.assertTrue(self.http_check.should_run())
+
+    def test_check_should_run_should_set_last_enabled_if_null(self):
+        # This tests the behavior of should_run(), and under what circumstances
+        # it should set the last_enabled field.
+        #
+        # NB: we use self._get_activity_counter() instead of just saving the counter
+        # as a local variable, because we want to test the latest values in the DB.
+
+        # Create the activity_counter
+        self._set_activity_counter(True, 0)
+
+        # Make sure last_enabled is None
+        self.assertTrue(self.http_check.use_activity_counter)
+        self.assertIsNone(self._get_activity_counter().last_enabled)
+
+        # Even though use_activity_counter is True, should_run() will not set last_enabled
+        # because the count is 0 and last_enabled is None (a special case).
+        self.assertFalse(self.http_check.should_run())
+        self.assertIsNone(self._get_activity_counter().last_enabled)
+
+        # Once count is positive and we need last_enabled, it'll be set
+        counter = self._get_activity_counter()
+        counter.count = 4
+        counter.save()
+        self.assertTrue(self.http_check.should_run())
+        self.assertIsNotNone(self._get_activity_counter().last_enabled)
+
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_check_should_run_with_delay(self, mock_now):
+        # Use the following times:
+        #
+        # - last_enabled  = T+0
+        # - last_disabled = T+60
+        # - run_delay     = 30 mins
+        #
+        # The check should thus run between T+30 and T+90
+        self._set_activity_counter(True, 1)
+        self.http_check.run_delay = 30
+        self.http_check.save()
+        counter = self._get_activity_counter()
+
+        # Assume it is 15 mins after check was enabled. Check should not run right now.
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=15)
+        self.assertFalse(self.http_check.should_run())
+
+        # Check should run if now >= run_delay (30 minutes)
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=30)
+        self.assertTrue(self.http_check.should_run())
+
+        # Now assume the check ran recently. It shouldn't run again until the frequency is up.
+        self.http_check.last_run = counter.last_enabled + timedelta(minutes=31)
+        self.http_check.save()
+
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=32)
+        self.assertFalse(self.http_check.should_run())
+
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=37)
+        self.assertTrue(self.http_check.should_run())
+
+        # Finally, reset the counter and set the last_disabled time to last_enabled + 60.
+        # The check should not run if after the disabled time (last_enabled + 90).
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=60)
+        counter.reset_and_save()
+
+        # - Though the counter is 0, the current time is still less than last_disabled + run_delay,
+        #   so the check should still run.
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=89)
+        self.assertTrue(self.http_check.should_run())
+
+        # - The current time is past last_disabled + run_delay, so the check should not run.
+        mock_now.return_value = counter.last_enabled + timedelta(minutes=91)
         self.assertFalse(self.http_check.should_run())
 
     def test_counter_incr_concurrent(self):

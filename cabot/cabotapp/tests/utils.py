@@ -10,7 +10,6 @@ from datetime import timedelta
 import json
 import os
 import socket
-from celery.task import task
 from mock import Mock
 
 from cabot.cabotapp.models import (
@@ -190,12 +189,6 @@ def fake_calendar(*args, **kwargs):
     resp = Mock()
     resp.content = get_content(args)
     resp.status_code = 200
-    return resp
-
-
-@task(ignore_result=True)
-def fake_run_status_check(*args, **kwargs):
-    resp = Mock()
     return resp
 
 

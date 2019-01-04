@@ -29,6 +29,7 @@ _GROUPS = (
     ('Advanced', (
         'auto_sync',
         'use_activity_counter',
+        'run_delay',
         'runbook',
     )),
 )

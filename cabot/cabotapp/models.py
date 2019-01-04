@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
+from django.core.validators import MaxValueValidator
 from django.db import models, transaction
 from polymorphic import PolymorphicModel
 
@@ -441,6 +442,13 @@ class StatusCheck(PolymorphicModel):
         help_text='Number of successive failures permitted before check will be marked as failed. '
                   'Default is 0, i.e. fail on first failure.'
     )
+    run_delay = models.PositiveIntegerField(
+        default=0,
+        validators=[MaxValueValidator(60)],
+        help_text='Minutes to delay running the check, between 0-60. Only for checks using activity counters. '
+                  'A run delay can alleviate race conditions between an activity-counted check first running, '
+                  'and metrics being available.'
+    )
     created_by = models.ForeignKey(User, null=True)
     calculated_status = models.CharField(
         max_length=50, choices=Service.STATUSES, default=Service.CALCULATED_PASSING_STATUS, blank=True)
@@ -473,13 +481,52 @@ class StatusCheck(PolymorphicModel):
     def should_run(self):
         '''Returns true if the check should run, false otherwise.'''
 
-        # Do not run if the activity counter is enabled and zero.
-        # - If the DB entry does not exist, we assume a value of zero.
+        # Handle special cases for activity-counted checks, which may have run delays
         if self.use_activity_counter:
-            counters = ActivityCounter.objects.filter(status_check=self)
-            if len(counters) == 0 or counters[0].count <= 0:
-                logger.info("Skipping check '{}', activity counter is zero".format(self.name))
+            # Get the check's counter. If it doesn't exist, the check should not run.
+            try:
+                counter = ActivityCounter.objects.get(status_check=self)
+            except ActivityCounter.DoesNotExist:
                 return False
+
+            # If last_enabled is None, then either:
+            # - If count == 0, the check should not run, as there is no record of the counter being incremented.
+            # - If count > 0, set last_enabled to now to ensure it is not None. This should only happen once,
+            #   when this code is first deployed.
+            if counter.last_enabled is None:
+                if counter.count == 0:
+                    return False
+                else:
+                    # NB: since we are updating last_enabled outside of a transaction, there's a possibility
+                    # that we clobber existing data. However, we should almost never enter this if-block, and
+                    # worst case we clobber a recent value with a nearly identical value.
+                    counter.last_enabled = timezone.now()
+                    counter.save(update_fields=["last_enabled"])
+                    logger.warning("activity_counter id={} last_enabled is None, setting to now".format(counter.id))
+
+            # For activity-counted checks, we need to determine if the current time is within the
+            # window during which the check may run:
+            #
+            #      (last_enabled+run_delay) <= current_time <= (last_disabled+run_delay)
+            #
+            # Note that we don't need to check the counter value; it is used by ActivityCounter instance
+            # methods to determine when to update last_enabled and last_disabled.
+            mins_delay = timedelta(minutes=self.run_delay)
+            window_start = counter.last_enabled + mins_delay
+            window_end = (counter.last_disabled + mins_delay) if counter.last_disabled else None
+
+            # Check if the current time falls within the time window.
+            now = timezone.now()
+
+            # Window is in the future
+            if now < window_start:
+                return False
+
+            # Window is in the past
+            if window_end and window_end > window_start and now > window_end:
+                return False
+
+            # The last thing to verify is that the check hasn't run within the frequency
 
         # Run if we haven't run at all
         if not self.last_run:
@@ -571,6 +618,9 @@ class ActivityCounter(models.Model):
     '''
     Model containing the current activity-counter value for a check with
     use_activity_counter set to True.
+
+    IMPORTANT: modifying the counter should only be done inside of a transaction.
+    Use `ActivityCounter.objects.select_for_update().get(...)` to avoid concurrency issues.
     '''
     status_check = models.OneToOneField(
         StatusCheck,
@@ -578,6 +628,38 @@ class ActivityCounter(models.Model):
         related_name='activity_counter',
     )
     count = models.PositiveIntegerField(default=0)
+    last_enabled = models.DateTimeField(null=True)
+    last_disabled = models.DateTimeField(null=True)
+
+    def increment_and_save(self):
+        '''
+        Increment the counter, update last_enabled if the count is going from 0 to 1,
+        and save the model.
+        '''
+        if self.count == 0:
+            self.last_enabled = timezone.now()
+        self.count += 1
+        self.save()
+
+    def decrement_and_save(self):
+        '''
+        Decrement the counter to a minimum of zero. Update last_disabled if going from
+        1 to 0. Save the model if it changed.
+        '''
+        if self.count == 1:
+            self.last_disabled = timezone.now()
+        if self.count > 0:
+            self.count -= 1
+            self.save()
+
+    def reset_and_save(self):
+        '''
+        If the counter is positive, set it to zero, update last_disabled, and save.
+        '''
+        if self.count > 0:
+            self.last_disabled = timezone.now()
+            self.count = 0
+            self.save()
 
 
 class HttpStatusCheck(StatusCheck):
