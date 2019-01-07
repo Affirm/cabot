@@ -6,6 +6,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.core.urlresolvers import reverse_lazy
 from django.conf import settings
 
+from cabot.cabotapp.alert import AlertPlugin, update_alert_plugins
 from models import (StatusCheck,
                     JenkinsStatusCheck,
                     HttpStatusCheck,
@@ -39,7 +40,6 @@ from django.core.urlresolvers import reverse
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from cabot.cabotapp import alert
 from cabot.cabotapp.utils import format_datetime
 from models import AlertPluginUserData
 from django.contrib import messages
@@ -491,107 +491,78 @@ class UserProfileUpdateView(LoginRequiredMixin, View):
         return HttpResponseRedirect(reverse('update-alert-user-data', args=(self.kwargs['pk'], u'General')))
 
 
-class UserProfileUpdateAlert(LoginRequiredMixin, View):
-    template = loader.get_template('cabotapp/alertpluginuserdata_form.html')
-    model = AlertPluginUserData
+class GeneralSettingsForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ('first_name', 'last_name', 'email', 'is_active',)
+        labels = {
+            'email': 'Email address',
+            'is_active': 'Enabled'
+        }
 
-    def get(self, request, pk, alerttype):
-        if request.user.id != int(pk) and not request.user.is_superuser:
+
+class UserProfileUpdateAlert(LoginRequiredMixin, UpdateView):
+    """
+    The "My Profile" page. Allows editing the current User model and any AlertPluginUserDatas.
+    The 'alerttype' kwarg is the AlertPluginUserData.title we're editing, 'pk' is the user whose preferences we're
+    editing (superuser can edit anyone's settings).
+    The 'General' alerttype is a special case for editing the User model (from Django).
+    """
+    template_name = 'cabotapp/alertpluginuserdata_form.html'
+
+    # return a 403 if not logged in or the user ID doesn't match the logged in user and the user isn't an admin
+    # (this runs before get/post)
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.id != int(kwargs['pk']) and not request.user.is_superuser:
             return HttpResponse(status=403)
+        return super(UserProfileUpdateAlert, self).dispatch(request, *args, **kwargs)
 
+    def get_object(self, queryset=None):
+        alerttype = self.kwargs['alerttype']
+
+        user = User.objects.get(pk=self.kwargs['pk'])
+        if alerttype == u'General':
+            return user
+
+        profile = UserProfile.objects.get_or_create(user=user)[0]
+        # note: profile.user_data() has a side-effect of creating AlertPluginUserData for user if it doesn't exist
+        return profile.user_data().get(title=alerttype)
+
+    def get_form_class(self):
+        if type(self.object) is User:
+            return GeneralSettingsForm
+
+        # else object is an AlertPluginUserData subclass
+        # create form class
+        class AlertPreferencesForm(forms.ModelForm):
+            class Meta:
+                model = type(self.object)
+
+        return AlertPreferencesForm
+
+    def get_context_data(self, **kwargs):
+        ctx = super(UserProfileUpdateAlert, self).get_context_data(**kwargs)
+        user = User.objects.get(pk=self.kwargs['pk'])
+        profile = UserProfile.objects.get_or_create(user=user)[0]
+        ctx['alert_preferences'] = profile.user_data().order_by('title')
+
+        # so send-test-alert's redirect knows which settings page to return to
+        ctx['alerttype'] = self.kwargs['alerttype']
+
+        # set associated_alerts to the list of AlertPlugin objects related to the AlertPluginUserData we are editing
         try:
-            profile = UserProfile.objects.get(user=pk)
-        except UserProfile.DoesNotExist:
-            user = User.objects.get(id=pk)
-            profile = UserProfile(user=user)
-            profile.save()
+            alert_userdata = profile.user_data().get(title=self.kwargs['alerttype'])
+            alert_names = [a.name for a in alert_userdata.alert_classes if hasattr(a, 'name')]
+            alerts = AlertPlugin.objects.filter(title__in=alert_names)
+            ctx['associated_alerts'] = alerts
+        except AlertPluginUserData.DoesNotExist:
+            # special case for the General page...
+            ctx['associated_alerts'] = AlertPlugin.objects.filter(title='Email')
 
-        profile.user_data()
+        return ctx
 
-        if (alerttype == u'General'):
-            form = GeneralSettingsForm(initial={
-                'first_name': profile.user.first_name,
-                'last_name': profile.user.last_name,
-                'email_address': profile.user.email,
-                'enabled': profile.user.is_active,
-                })
-        else:
-            plugin_userdata = self.model.objects.get(title=alerttype, user=profile)
-            form_model = get_object_form(type(plugin_userdata))
-            form = form_model(instance=plugin_userdata)
-
-        c = RequestContext(request, {
-            'form': form,
-            'alert_preferences': profile.user_data(),
-            })
-        return HttpResponse(self.template.render(c))
-
-    def post(self, request, pk, alerttype):
-        if request.user.id != int(pk) and not request.user.is_superuser:
-            return HttpResponse(status=403)
-
-        profile = UserProfile.objects.get(user=pk)
-        if (alerttype == u'General'):
-            form = GeneralSettingsForm(request.POST)
-            if form.is_valid():
-                profile.user.first_name = form.cleaned_data['first_name']
-                profile.user.last_name = form.cleaned_data['last_name']
-                profile.user.is_active = form.cleaned_data['enabled']
-                profile.user.email = form.cleaned_data['email_address']
-                profile.user.save()
-                profile.save()
-                return HttpResponseRedirect(reverse('update-alert-user-data', args=(self.kwargs['pk'], alerttype)))
-
-        else:
-            plugin_userdata = self.model.objects.get(title=alerttype, user=profile)
-            form_model = get_object_form(type(plugin_userdata))
-            form = form_model(request.POST, instance=plugin_userdata)
-            if form.is_valid() and not form.errors:
-                form.save()
-                return HttpResponseRedirect(reverse('update-alert-user-data', args=(self.kwargs['pk'], alerttype)))
-            else:
-                c = RequestContext(request, {
-                    'form': form,
-                    'alert_preferences': profile.user_data,
-                })
-                return HttpResponse(self.template.render(c))
-
-
-def get_object_form(model_type):
-    class AlertPreferencesForm(forms.ModelForm):
-        class Meta:
-            model = model_type
-
-        def is_valid(self):
-            return True
-
-        def clean_phone_number(self):
-            phone_number = self.cleaned_data['phone_number']
-            if any(not n.isdigit() for n in phone_number):
-                raise ValidationError('Phone number should only contain numbers. '
-                                      'Format: CNNNNNNNNNN, where C is the country code (1 for USA)')
-
-            # 10 digit phone number + 1+ digit country code
-            if len(phone_number) < 11:
-                raise ValidationError('Phone number should include a country code. '
-                                      'Format: CNNNNNNNNNN, where C is the country code (1 for USA)')
-
-            return phone_number
-
-        def clean_hipchat_alias(self):
-            hipchat_alias = self.cleaned_data['hipchat_alias']
-            if hipchat_alias.startswith('@'):
-                raise ValidationError('Do not include leading @ in Hipchat alias')
-            return hipchat_alias
-
-    return AlertPreferencesForm
-
-
-class GeneralSettingsForm(forms.Form):
-    first_name = forms.CharField(label='First name', max_length=30, required=False)
-    last_name = forms.CharField(label='Last name', max_length=30, required=False)
-    email_address = forms.CharField(label='Email Address', max_length=30, required=False)
-    enabled = forms.BooleanField(label='Enabled', required=False)
+    def get_success_url(self):
+        return reverse('update-alert-user-data', kwargs=self.kwargs)
 
 
 class ServiceListView(LoginRequiredMixin, ListView):
@@ -658,7 +629,7 @@ class ServiceCreateView(LoginRequiredMixin, CreateView):
     model = Service
     form_class = ServiceForm
 
-    alert.update_alert_plugins()
+    update_alert_plugins()
 
     def get_success_url(self):
         return reverse('service', kwargs={'pk': self.object.id})
@@ -911,3 +882,24 @@ class ActivityCounterView(View):
             return 'counter reset to 0'
 
         raise ViewError("invalid action '{}'".format(action), 400)
+
+
+class SendTestAlertView(LoginRequiredMixin, View):
+    def get(self, *args, **kwargs):
+        alert = AlertPlugin.objects.get(pk=kwargs['alert_pk'])
+
+        try:
+            alert.send_test_alert(self.request.user)
+            messages.success(self.request, "Alert sent.", extra_tags="alert-success")
+        except Exception as e:
+            logger.exception("Exception occurred sending test alert %s to user %s. This can happen normally "
+                             "(e.g. if the user did not answer a Twilio phone call).",
+                             alert.title, self.request.user)
+            messages.error(self.request, "Exception occurred while sending alert: {}. This can happen normally "
+                                         "(e.g. if you hung up on a Twilio phone call).".format(e),
+                           extra_tags="alert-danger")
+
+        return HttpResponseRedirect(reverse('update-alert-user-data', kwargs={
+            'pk': self.request.user.pk,
+            'alerttype': kwargs['alerttype']
+        }))

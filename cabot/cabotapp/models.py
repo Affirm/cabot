@@ -80,10 +80,10 @@ class CheckGroupMixin(models.Model):
     class Meta:
         abstract = True
 
-    PASSING_STATUS = 'PASSING'
-    WARNING_STATUS = 'WARNING'
-    ERROR_STATUS = 'ERROR'
-    CRITICAL_STATUS = 'CRITICAL'
+    PASSING_STATUS = defs.PASSING_STATUS
+    WARNING_STATUS = defs.WARNING_STATUS
+    ERROR_STATUS = defs.ERROR_STATUS
+    CRITICAL_STATUS = defs.CRITICAL_STATUS
 
     CALCULATED_PASSING_STATUS = 'passing'
     CALCULATED_INTERMITTENT_STATUS = 'intermittent'
