@@ -61,8 +61,11 @@ class GrafanaPanelForm(forms.Form):
         )
 
         if default_panel_id is not None:
-            default_panel = next(panel for panel in panels if panel[0]['panel_id'] == default_panel_id)
-            self.fields['panel'].initial = default_panel[0]
+            for panel in panels:
+                panel_data = panel[0]
+                if panel_data['panel_id'] == default_panel_id:
+                    self.fields['panel'].initial = panel_data
+                    break
 
     def clean_panel(self):
         """Make sure the data source for the panel is supported"""
