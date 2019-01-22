@@ -25,7 +25,8 @@ from cabot.cabotapp.views import (
     ScheduleListView,
     ScheduleUpdateView,
     ScheduleDeleteView,
-    ScheduleSnoozeWarningsView)
+    ScheduleSnoozeWarningsView,
+    SendTestAlertView)
 
 from cabot.cabotapp.views import (
     ServiceListView,
@@ -218,6 +219,10 @@ urlpatterns = patterns(
     url(r'^api/status-checks/activity-counter(/?)',
         view=ActivityCounterView.as_view(),
         name='activity-counter'),
+
+    url(r'^send-test-alert/(?P<alerttype>.+)/(?P<alert_pk>\d+)/',
+        view=SendTestAlertView.as_view(),
+        name='send-test-alert'),
 
     # Comment below line to disable browsable rest api
     url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),

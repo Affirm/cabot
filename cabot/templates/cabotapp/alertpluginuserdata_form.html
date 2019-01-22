@@ -6,8 +6,13 @@
     <div class="col-sm-3 col-md-2 sidebar">
       <ul class="nav nav-sidebar">
           <li><a href="General">General</a></li>
-        {% for alert in alert_preferences %}
-          <li><a href="{{ alert.title }}">{{ alert.title }}</a></li>
+        {% for alert_userdata in alert_preferences %}
+          <li>
+            <a href="{{ alert_userdata.title }}">
+              {{ alert_userdata.title }}
+              <span class="glyphicon {% if alert_userdata.is_configured %}glyphicon-ok{% else %}glyphicon-exclamation-sign{% endif %}"></span>
+            </a>
+          </li>
         {% endfor %}
       </ul>
     </div>
@@ -23,6 +28,22 @@
           </div>
         </div>
       </form>
+
+      {% if associated_alerts %}
+        <div class="row" style="padding-bottom: 8px">
+          <h4>Send Test Alert</h4>
+          <p>You can send a test alert to yourself to make sure everything is working correctly.</p>
+          {% for alert in associated_alerts %}
+            <a class="btn btn-primary" href="{% url 'send-test-alert' alerttype alert.pk %}">
+              Send '{{ alert.name }}' Test Alert
+            </a>
+          {% endfor %}
+          {% for message in messages %}
+            <br/><br/>
+            <p class="alert {{ message.tags }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -33,7 +54,6 @@
 {{ block.super }}
 {% compress js %}
 <script type="text/coffeescript">
-
 
 </script>
 {% endcompress %}
