@@ -228,7 +228,7 @@ urlpatterns = [
     url(r'^api/', include(rest_urls.router.urls)),
     url(r'^complete/(?P<backend>[^/]+)/$', AuthComplete.as_view()),
     url(r'^login-error/$', LoginError.as_view()),
-    url(r'', include('social.apps.django_app.urls', namespace='social')),
+    url(r'', include('social_django.urls', namespace='social')),
 ]
 
 

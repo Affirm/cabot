@@ -92,7 +92,7 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'social.apps.django_app.middleware.SocialAuthExceptionMiddleware',
+    'social_django.middleware.SocialAuthExceptionMiddleware',
     'rollbar.contrib.django.middleware.RollbarNotifierMiddleware',
 )
 
@@ -114,8 +114,8 @@ TEMPLATES = [{
             'django.template.context_processors.request',
             'django.contrib.auth.context_processors.auth',
             'django.contrib.messages.context_processors.messages',
-            'social.apps.django_app.context_processors.backends',
-            'social.apps.django_app.context_processors.login_redirect',
+            'social_django.context_processors.backends',
+            'social_django.context_processors.login_redirect',
         ],
         'debug': DEBUG,
     },
@@ -139,7 +139,7 @@ INSTALLED_APPS = (
     'cabot.cabotapp',
     'cabot.metricsapp',
     'rest_framework',
-    'social.apps.django_app.default',
+    'social_django',
 )
 
 # Load additional apps from configuration file
@@ -257,8 +257,8 @@ REST_FRAMEWORK = {
 }
 
 AUTHENTICATION_BACKENDS = (
-    'social.backends.google.GoogleOAuth2',
-    'social.backends.google.GoogleOAuth',
+    'social_core.backends.google.GoogleOAuth2',
+    'social_core.backends.google.GoogleOAuth',
     'django.contrib.auth.backends.ModelBackend',
 )
 
@@ -286,7 +286,7 @@ GOOGLE_OAUTH2_SOCIAL_AUTH_RAISE_EXCEPTIONS = True
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.environ.get('GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.environ.get('GOOGLE_OAUTH2_SECRET')
 COMPRESS_ENABLED = False
-LOGIN_REDIRECT_URL = '/'
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = '/'  # default URL to redirect to if /next isn't present
 
 # Use cloudwatch to monitor cabot alerts
 AWS_CLOUDWATCH_SYNC = os.environ.get('AWS_CLOUDWATCH_SYNC', False)

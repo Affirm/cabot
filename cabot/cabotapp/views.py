@@ -43,8 +43,8 @@ from django.db import transaction
 from cabot.cabotapp.utils import format_datetime
 from models import AlertPluginUserData
 from django.contrib import messages
-from social.exceptions import AuthFailed
-from social.apps.django_app.views import complete
+from social_core.exceptions import AuthFailed
+from social_django.views import complete
 
 from itertools import groupby, dropwhile, izip_longest
 import requests
