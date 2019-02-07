@@ -301,6 +301,7 @@ ROLLBAR = {
     'access_token': os.environ.get('ROLLBAR_ACCESS_TOKEN', None),
     'environment': os.environ.get('ROLLBAR_ENVIRONMENT', 'prod'),
     'branch': os.environ.get('ROLLBAR_BRANCH', 'master'),
+    'patch_debugview': False,  # if True, test alert exceptions cause infinite recursion in pyrollbar :|
     'root': PROJECT_ROOT,
 }
 
