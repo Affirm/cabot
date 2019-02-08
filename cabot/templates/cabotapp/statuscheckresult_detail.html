@@ -40,12 +40,13 @@
 
 {% block js %}
 {% load compress %}
+{% load static %}
 {{ block.super }}
 <script type="text/javascript">
 window.DATA = {{ result.raw_data|safe }};
 </script>
 {% compress js %}
-<script type="text/javascript" src="{{ STATIC_URL }}arachnys/js/raphael.js"></script>
+<script type="text/javascript" src="{% static "arachnys/js/raphael.js" %}"></script>
 <script type="text/coffeescript">
 kvs = []
 labels = []

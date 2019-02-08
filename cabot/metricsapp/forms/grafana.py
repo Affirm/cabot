@@ -9,11 +9,13 @@ from cabot.metricsapp.models import GrafanaInstance, GrafanaDataSource
 class GrafanaInstanceAdminForm(forms.ModelForm):
     class Meta:
         model = GrafanaInstance
+        exclude = []
 
 
 class GrafanaDataSourceAdminForm(forms.ModelForm):
     class Meta:
         model = GrafanaDataSource
+        exclude = []
 
 
 # Forms for selecting Grafana instance, dashboard, panel, etc.
