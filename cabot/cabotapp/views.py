@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse, HttpResponseRedirect
 from django.core.urlresolvers import reverse_lazy
 from django.conf import settings
+from timezone_field import TimeZoneFormField
 
 from cabot.cabotapp.alert import AlertPlugin
 from models import (StatusCheck,
@@ -499,6 +500,20 @@ class GeneralSettingsForm(forms.ModelForm):
             'email': 'Email address',
             'is_active': 'Enabled'
         }
+
+    def __init__(self, *args, **kwargs):
+        super(GeneralSettingsForm, self).__init__(*args, **kwargs)
+
+        self.profile = UserProfile.objects.get_or_create(user=self.instance)[0] if self.instance else None
+        tz = self.profile.timezone if self.instance else None
+        self.fields['timezone'] = TimeZoneFormField(initial=tz)
+
+    def save(self, *args, **kwargs):
+        ret = super(GeneralSettingsForm, self).save(*args, **kwargs)
+        if self.profile:  # TODO respect commit kwarg?
+            self.profile.timezone = self.cleaned_data['timezone']
+            self.profile.save()
+        return ret
 
 
 class UserProfileUpdateAlert(LoginRequiredMixin, UpdateView):

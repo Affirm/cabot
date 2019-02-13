@@ -1,7 +1,9 @@
 from django import template
 from django.conf import settings
+from django.utils import timezone
 from datetime import timedelta
 from urlparse import urljoin
+
 from cabot.cabotapp.defs import TIMESTAMP_FORMAT
 
 register = template.Library()
@@ -20,4 +22,5 @@ def format_timedelta(delta):
 
 @register.filter(name='format_timestamp')
 def format_timestamp(ts):
-    return ts.strftime(TIMESTAMP_FORMAT)
+    # need to wrap this with timezone.localtime, otherwise strftime skips locale conversion
+    return timezone.localtime(ts).strftime(TIMESTAMP_FORMAT)

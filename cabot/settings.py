@@ -94,6 +94,7 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.messages.middleware.MessageMiddleware',
     'social_django.middleware.SocialAuthExceptionMiddleware',
     'rollbar.contrib.django.middleware.RollbarNotifierMiddleware',
+    'cabot.cabotapp.middleware.TimezoneMiddleware',
 )
 
 ROOT_URLCONF = 'cabot.urls'
@@ -140,6 +141,7 @@ INSTALLED_APPS = (
     'cabot.metricsapp',
     'rest_framework',
     'social_django',
+    'timezone_field',
 )
 
 # Load additional apps from configuration file

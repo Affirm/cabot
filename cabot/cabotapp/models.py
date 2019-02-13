@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.core.validators import MaxValueValidator
 from django.db import models, transaction
 from polymorphic.models import PolymorphicModel
+from timezone_field import TimeZoneField
 
 from .jenkins import get_job_status
 from .alert import (send_alert, AlertPluginUserData)
@@ -1012,6 +1013,8 @@ class UserProfile(models.Model):
 
     mobile_number = models.CharField(max_length=20, blank=True, default='')
     hipchat_alias = models.CharField(max_length=50, blank=True, default='')
+
+    timezone = TimeZoneField(default='UTC')
 
 
 def get_events(schedule):
