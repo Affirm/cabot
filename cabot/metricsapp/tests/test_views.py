@@ -33,7 +33,6 @@ class TestMetricsReviewChanges(TestCase):
             'auto_sync': True,
             'check_type': '<=',
             'warning_value': 9.0,
-
             'high_alert_importance': Service.ERROR_STATUS,
             'high_alert_value': 15.0,
             'consecutive_failures': 1,
@@ -41,7 +40,9 @@ class TestMetricsReviewChanges(TestCase):
             'retries': 0,
             'frequency': 5,
             'ignore_final_data_point': True,
+            'on_empty_series': 'fill_zero',
             'use_activity_counter': False,
+            'run_delay': 0,
             'runbook': '',
         }
 

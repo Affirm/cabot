@@ -10,7 +10,6 @@ from datetime import timedelta
 import json
 import os
 import socket
-from celery.task import task
 from mock import Mock
 
 from cabot.cabotapp.models import (
@@ -110,7 +109,7 @@ class LocalTestCase(APITestCase):
 
         # Failing is second most recent
         self.older_result = StatusCheckResult(
-            check=self.http_check,
+            status_check=self.http_check,
             time=timezone.now() - timedelta(seconds=60),
             time_complete=timezone.now() - timedelta(seconds=59),
             succeeded=False
@@ -118,7 +117,7 @@ class LocalTestCase(APITestCase):
         self.older_result.save()
         # Passing is most recent
         self.most_recent_result = StatusCheckResult(
-            check=self.http_check,
+            status_check=self.http_check,
             time=timezone.now() - timedelta(seconds=1),
             time_complete=timezone.now(),
             succeeded=True
@@ -190,12 +189,6 @@ def fake_calendar(*args, **kwargs):
     resp = Mock()
     resp.content = get_content(args)
     resp.status_code = 200
-    return resp
-
-
-@task(ignore_result=True)
-def fake_run_status_check(*args, **kwargs):
-    resp = Mock()
     return resp
 
 

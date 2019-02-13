@@ -10,6 +10,7 @@ from cabot.cabotapp.views import StatusCheckForm
 class ElasticsearchSourceForm(ModelForm):
     class Meta:
         model = ElasticsearchSource
+        exclude = []
 
     def clean_urls(self):
         """Make sure the input urls are valid Elasticsearch hosts."""
@@ -42,6 +43,7 @@ class ElasticsearchStatusCheckForm(StatusCheckForm):
             'retries',
             'ignore_final_data_point',
             'use_activity_counter',
+            'run_delay',
             'runbook',
         )
 

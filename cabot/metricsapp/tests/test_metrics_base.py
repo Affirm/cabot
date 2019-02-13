@@ -5,6 +5,7 @@ import os
 import yaml
 from cabot.cabotapp.models import Service
 from cabot.metricsapp.models import MetricsStatusCheckBase, MetricsSourceBase
+from cabot.metricsapp import defs
 
 
 def get_content(filename):
@@ -19,6 +20,10 @@ def mock_get_series(*args):
 
 def get_series_error(*args):
     return yaml.load(get_content('metrics_error.yaml'))
+
+
+def mock_get_empty_series(*args):
+    return {'error': False, 'raw': 'rawstuff', 'data': []}
 
 
 def mock_time():
@@ -42,7 +47,7 @@ class TestMetricsBase(TestCase):
     @patch('time.time', mock_time)
     def test_failure(self):
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 9.2 not <= 9.0')
 
@@ -51,7 +56,7 @@ class TestMetricsBase(TestCase):
     def test_success(self):
         self.metrics_check.warning_value = 10.0
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
 
@@ -120,14 +125,14 @@ class TestMetricsBase(TestCase):
         Run check at the current time (all the points are outdated). Should succeed
         """
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', get_series_error)
     def test_error(self):
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'Error fetching metric from source: None')
 
@@ -211,7 +216,7 @@ class TestMultipleThresholds(TestCase):
         """Check only has a warning value"""
         self.metrics_check.high_alert_value = None
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 9.2 not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
@@ -223,7 +228,7 @@ class TestMultipleThresholds(TestCase):
         self.metrics_check.warning_value = None
         self.metrics_check.high_alert_value = 9.0
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL prod.good.data: 9.2 not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.CRITICAL_STATUS)
@@ -232,7 +237,7 @@ class TestMultipleThresholds(TestCase):
         self.metrics_check.warning_value = 9.0
         self.metrics_check.high_alert_value = 10.0
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 9.2 not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
@@ -250,7 +255,7 @@ class TestMultipleThresholds(TestCase):
         self.metrics_check.warning_value = 8.0
         self.metrics_check.high_alert_value = 9.0
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL prod.good.data: 2 consecutive points not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.CRITICAL_STATUS)
@@ -259,7 +264,7 @@ class TestMultipleThresholds(TestCase):
         self.metrics_check.warning_value = 9.0
         self.metrics_check.high_alert_value = 10.0
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 2 consecutive points not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
@@ -277,7 +282,7 @@ class TestMultipleThresholds(TestCase):
         self.metrics_check.warning_value = 8.0
         self.metrics_check.high_alert_value = 9.0
         result = self.metrics_check._run()
-        self.assertEqual(result.check, self.metrics_check)
+        self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 3 consecutive points not <= 8.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
@@ -312,3 +317,74 @@ class TestMultipleThresholds(TestCase):
         # If this fails, we might see:
         # "CRITICAL alert.high_alert_threshold: 2 consecutive points not < 10.0"
         self.assertEqual(result.error, u'WARNING prod.good.data: 2 consecutive points not < 9.0')
+
+
+class TestEmptySeries(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('user')
+        self.source = MetricsSourceBase.objects.create(name='source')
+        self.status_check = MetricsStatusCheckBase(
+            name='test',
+            created_by=self.user,
+            source=self.source,
+            check_type='>',
+            warning_value=10,
+            high_alert_value=5,
+            high_alert_importance=Service.CRITICAL_STATUS,
+        )
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_fill_single_zero_by_default(self):
+        # _get_parsed_data() does not get filled. We expect an empty array.
+        self.assertEqual(self.status_check._get_parsed_data()['data'], [])
+        # get_series() is filled
+        expected = [{'datapoints': [[mock_time(), 0.0]], 'series': 'no_data_fill_0'}]
+        self.assertEqual(self.status_check.get_series()['data'], expected)
+        # The test should fail
+        result = self.status_check._run()
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, u'CRITICAL no_data_fill_0: 0.0 not > 5.0')
+        self.assertEqual(self.status_check.importance, Service.CRITICAL_STATUS)
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_immediate_success(self):
+        self.status_check.on_empty_series = defs.ON_EMPTY_SERIES_PASS
+        # Points should not be filled in
+        self.assertEqual(self.status_check.get_series()['data'], [])
+        # The test should succeed
+        result = self.status_check._run()
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.error, u'SUCCESS: no data')
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_immediate_warning(self):
+        self.status_check.on_empty_series = defs.ON_EMPTY_SERIES_WARN
+        # Points should not be filled in
+        self.assertEqual(self.status_check.get_series()['data'], [])
+        # The test should warn
+        result = self.status_check._run()
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, u'WARNING: no data')
+        self.assertEqual(self.status_check.importance, Service.WARNING_STATUS)
+
+    @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
+    @patch('time.time', mock_time)
+    def test_immediate_failure(self):
+        self.status_check.on_empty_series = defs.ON_EMPTY_SERIES_FAIL
+        # Points should not be filled in
+        self.assertEqual(self.status_check.get_series()['data'], [])
+        # The test should fail and respect the high_alert_importance (ERROR here)
+        self.status_check.high_alert_importance = Service.ERROR_STATUS
+        result = self.status_check._run()
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, u'ERROR: no data')
+        self.assertEqual(self.status_check.importance, Service.ERROR_STATUS)
+        # This time it should fail with CRITICAL
+        self.status_check.high_alert_importance = Service.CRITICAL_STATUS
+        result = self.status_check._run()
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.error, u'CRITICAL: no data')
+        self.assertEqual(self.status_check.importance, Service.CRITICAL_STATUS)

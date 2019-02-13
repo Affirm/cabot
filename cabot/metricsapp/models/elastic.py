@@ -10,6 +10,7 @@ from elasticsearch_dsl import MultiSearch, Search
 from cabot.metricsapp.api import create_es_client, validate_query
 from cabot.metricsapp import defs
 from .base import MetricsSourceBase, MetricsStatusCheckBase
+import six
 
 
 logger = logging.getLogger(__name__)
@@ -112,26 +113,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         for query in queries:
             validate_query(query)
 
-    def get_series(self):
-        """
-        Get the relevant data for a check from Elasticsearch and parse it
-        into a generic format.
-        :param check: the ElasticsearchStatusCheck
-        :return data in the format
-            status:
-            error_message:
-            error_code:
-            raw:
-            data:
-              - series: a.b.c.d
-                datapoints:
-                  - [timestamp, value]
-                  - [timestamp, value]
-              - series: a.b.c.p.q
-                datapoints:
-                  - [timestamp, value]
-                check:
-        """
+    def _get_parsed_data(self):
         # Error will be set to true if we encounter an error
         parsed_data = dict(raw=[], error=False, data=[])
         source = ElasticsearchSource.objects.get(name=self.source.name)
@@ -164,13 +146,8 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         except Exception as e:
             logger.exception('Error executing Elasticsearch query: {}'.format(query))
             parsed_data['error_code'] = type(e).__name__
-            parsed_data['error_message'] = str(e)
+            parsed_data['error_message'] = six.text_type(e)
             parsed_data['error'] = True
-
-        # If there's no data, fill in a 0 so the check doesn't fail.
-        # TODO: fill value could be set based on "Stacking & Null value" in Grafana
-        if parsed_data['data'] == []:
-            parsed_data['data'].append(dict(series='no_data_fill_0', datapoints=[[int(time.time()), 0]]))
 
         return parsed_data
 
@@ -240,7 +217,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
 
         for subseries in series:
             if isinstance(subseries, tuple):
-                series_name = '.'.join(filter(None, [original_series_name, str(subseries[0])]))
+                series_name = u'.'.join(filter(None, [original_series_name, six.text_type(subseries[0])]))
                 subseries = subseries[1]
 
             if subseries.get('agg') is None:
@@ -250,8 +227,8 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
                 # New name is "series_name.subseries_name" (if they exist)
                 key = subseries.get('key')
                 if key is not None:
-                    key = str(key)
-                subseries_name = '.'.join(filter(None, [series_name, key]))
+                    key = six.text_type(key)
+                subseries_name = u'.'.join(filter(None, [series_name, key]))
                 results = self._parse_series(subseries['agg']['buckets'], series_name=subseries_name)
 
             for result in results:

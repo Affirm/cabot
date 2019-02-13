@@ -1,7 +1,9 @@
 import logging
 
 from django.db import models
-from polymorphic import PolymorphicModel
+from polymorphic.models import PolymorphicModel
+
+from cabot.cabotapp.utils import create_failing_service_mock
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +25,42 @@ class AlertPlugin(PolymorphicModel):
         """
         return True
 
+    def send_test_alert(self, user):
+        """
+        Send a test alert when the user requests it (to make sure config is valid).
+
+        The default implementation creates a fake Service and StatusCheck and calls the normal send_alert().
+        Note that the service/check may not be fully configured (e.g. invalid primary key, no HipChat room ID, ...).
+        :param user: django user
+        :return: nothing, raise exceptions on error
+        """
+        service_mock = create_failing_service_mock()
+        self.send_alert(service_mock, [], [user])
+
 
 class AlertPluginUserData(PolymorphicModel):
     title = models.CharField(max_length=30, editable=False)
-    user = models.ForeignKey('UserProfile', editable=False)
+    user = models.ForeignKey('UserProfile', editable=False, on_delete=models.CASCADE)
+
+    # This is used to add the "Send Test Alert" button to the edit page.
+    # We need this information to be able to map AlertPluginUserData subclasses to their AlertPlugins.
+    # It's a list because some plugins (like Twilio) have multiple alert types for one user data type.
+    alert_classes = []
 
     class Meta:
         unique_together = ('title', 'user',)
 
     def __unicode__(self):
         return u'%s' % (self.title)
+
+    def is_configured(self):
+        """
+        Override this to show warnings in the profile sidebar when something's not set up (i.e. a field is empty).
+
+        NOTE: This does NOT do validation when submitting the 'update profile' form. You should specify
+        models.SomeField(validators=[...]) when declaring your model's fields for that.
+        """
+        return True
 
 
 def send_alert(service, duty_officers=[], fallback_officers=[]):

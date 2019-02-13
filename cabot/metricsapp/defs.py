@@ -28,3 +28,15 @@ GRAFANA_RENDERED_IMAGE_WIDTH = 2000
 METRIC_STATUS_TIME_RANGE_DEFAULT = 30
 
 SCHEDULE_PROBLEMS_EMAIL_SNOOZE_HOURS = [4, 12, 24]  # which "silence for" links are shown in schedule problems emails
+
+ON_EMPTY_SERIES_PASS = 'pass'
+ON_EMPTY_SERIES_WARN = 'warn'
+ON_EMPTY_SERIES_FAIL = 'fail'
+ON_EMPTY_SERIES_FILL_ZERO = 'fill_zero'
+
+ON_EMPTY_SERIES_OPTIONS = (
+    (ON_EMPTY_SERIES_PASS, 'Pass'),
+    (ON_EMPTY_SERIES_WARN, 'Warn'),
+    (ON_EMPTY_SERIES_FAIL, 'Fail (error/critical)'),
+    (ON_EMPTY_SERIES_FILL_ZERO, 'Fill zero'),
+)

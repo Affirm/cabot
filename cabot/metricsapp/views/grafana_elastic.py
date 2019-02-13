@@ -41,7 +41,7 @@ class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, CreateView):
         context = super(GrafanaElasticsearchStatusCheckCreateView, self).get_context_data(**kwargs)
         context.update({
             'check_type': 'Elasticsearch',
-            'panel_url': kwargs['form'].grafana_panel.panel_url
+            'panel_url': context['form'].grafana_panel.panel_url
         })
         return context
 

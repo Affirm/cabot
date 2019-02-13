@@ -1,3 +1,4 @@
+# coding=utf-8
 import json
 import os
 from django.contrib.auth.models import User
@@ -97,6 +98,14 @@ def fake_es_one_datapoint(*args):
 
 def fake_es_all_but_first_none(*args):
     return [Response(Search(), response) for response in get_json_file('es_all_but_first_none.json')]
+
+
+def fake_es_unicode(*args):
+    return [Response(Search(), response) for response in get_json_file('es_multiple_terms_unicode.json')]
+
+
+def fake_es_filters_aggregation_unicode(*args):
+    return [Response(Search(), response) for response in get_json_file('es_filters_aggregation_unicode.json')]
 
 
 def mock_time():
@@ -225,6 +234,21 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(data[1]['series'], 'status_code:302.value_count')
         self.assertEqual(data[1]['datapoints'], [[1491566400, 42], [1491570000, 24], [1491573600, 11]])
 
+    @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_filters_aggregation_unicode)
+    @patch('time.time', mock_time)
+    def test_filters_aggregation_unicode(self):
+        series = self.es_check.get_series()
+        self.assertFalse(series['error'], msg=series.get('error_message'))
+        self.assertEqual(series['raw'], get_json_file('es_filters_aggregation_unicode.json'))
+        data = series['data']
+        self.assertEqual(len(data), 2)
+        data = sorted(data, key=lambda d: d['series'])
+
+        self.assertEqual(data[1]['series'], u'status_code:🅱️.value_count')
+        self.assertEqual(data[1]['datapoints'], [[1491566400, 1]])
+        self.assertEqual(data[0]['series'], u'status_code:(ノ°Д°）ノ︵ ┻━┻.value_count')
+        self.assertEqual(data[0]['datapoints'], [[1491566400, 42]])
+
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_percentile)
     @patch('time.time', mock_time)
     def test_percentile(self):
@@ -267,6 +291,22 @@ class TestElasticsearchStatusCheck(TestCase):
         self.assertEqual(data[1]['datapoints'], [[1491566400, 15.0]])
         self.assertEqual(str(data[2]['series']), 'south.west.min')
         self.assertEqual(data[2]['datapoints'], [[1491566400, 16.0]])
+
+    @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_unicode)
+    @patch('time.time', mock_time)
+    def test_multiple_terms_unicode(self):
+        series = self.es_check.get_series()
+        self.assertFalse(series['error'])
+        self.assertEqual(series['raw'], get_json_file('es_multiple_terms_unicode.json'))
+
+        data = series['data']
+        self.assertEqual(len(data), 1)
+
+        # Sort to make sure the order will always be the same
+        data = sorted(data, key=lambda d: d['series'])
+
+        self.assertEqual(data[0]['series'], u'nor🅱️th.we🅱️st.min')
+        self.assertEqual(data[0]['datapoints'], [[1491566400, 15.0]])
 
     @patch('cabot.metricsapp.models.elastic.MultiSearch.execute', fake_es_response)
     @patch('time.time', mock_time)

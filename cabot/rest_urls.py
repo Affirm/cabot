@@ -1,4 +1,3 @@
-from polymorphic import PolymorphicModel
 from cabot.cabotapp import models, alert
 from rest_framework import routers, serializers, viewsets, mixins
 import logging
@@ -44,16 +43,9 @@ def create_viewset(arg_model,
     else:
         viewset_class = viewsets.ModelViewSet
 
-    # Construct the queryset (ie. the list of model objects)
-    arg_queryset = None
-    if issubclass(arg_model, PolymorphicModel):
-        arg_queryset = arg_model.objects.instance_of(arg_model)
-    else:
-        arg_queryset = arg_model.objects.all()
-
     # Construct and return the ViewSet class
     class ViewSet(viewset_class):
-        queryset = arg_queryset
+        queryset = arg_model.objects
         serializer_class = Serializer
         ordering = ['id']
         filter_fields = arg_fields

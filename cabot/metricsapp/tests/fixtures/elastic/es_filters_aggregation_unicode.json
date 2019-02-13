@@ -1,0 +1,85 @@
+[{
+    "hits": {
+        "hits": [
+            {
+                "_score": 5.7443924,
+                "_type": "metrics-event",
+                "_id": "a",
+                "_index": "meddlesome-metrics"
+            },
+            {
+                "_score": 5.7443924,
+                "_type": "metrics-event",
+                "_id": "b",
+                "_index": "meddlesome-metrics"
+            },
+            {
+                "_score": 5.7443924,
+                "_type": "metrics-event",
+                "_id": "c",
+                "_index": "meddlesome-metrics"
+            }
+        ],
+        "total": 45,
+        "max_score": 5.7443924
+    },
+    "_shards": {
+        "successful": 5,
+        "failed": 0,
+        "total": 5
+    },
+    "took": 25,
+    "aggregations": {
+        "agg": {
+            "buckets": {
+                "status_code:🅱️": {
+                    "agg": {
+                        "buckets": [
+                            {
+                                "value_count": {
+                                    "value": 1
+                                },
+                                "key_as_string": "2017-04-07T12:00:00.000Z",
+                                "key": 1491566400000,
+                                "doc_count": 1
+                            },
+                            {
+                                "value_count": {
+                                    "value": 4
+                                },
+                                "key_as_string": "2017-04-07T13:00:00.000Z",
+                                "key": 1491570000000,
+                                "doc_count": 4
+                            }
+                        ]
+                    },
+                    "doc_count": 45
+                },
+                "status_code:(ノ°Д°）ノ︵ ┻━┻": {
+                    "agg": {
+                        "buckets": [
+                            {
+                                "value_count": {
+                                    "value": 42
+                                },
+                                "key_as_string": "2017-04-07T12:00:00.000Z",
+                                "key": 1491566400000,
+                                "doc_count": 42
+                            },
+                            {
+                                "value_count": {
+                                    "value": 24
+                                },
+                                "key_as_string": "2017-04-07T13:00:00.000Z",
+                                "key": 1491570000000,
+                                "doc_count": 24
+                            }
+                        ]
+                    },
+                    "doc_count": 0
+                }
+            }
+        }
+    },
+    "timed_out": false
+}]
