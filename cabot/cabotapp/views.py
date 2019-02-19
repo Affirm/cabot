@@ -8,7 +8,8 @@ from django.conf import settings
 from timezone_field import TimeZoneFormField
 
 from cabot.cabotapp.alert import AlertPlugin
-from cabot.cabotapp.revision_utils import get_revisions, RevisionMixin
+from cabot.cabotapp.revision_utils import get_revisions
+from reversion.views import RevisionMixin
 from models import (StatusCheck,
                     JenkinsStatusCheck,
                     HttpStatusCheck,

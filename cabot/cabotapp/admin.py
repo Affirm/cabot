@@ -1,4 +1,4 @@
-import reversion
+from reversion.admin import VersionAdmin
 from django.contrib import admin
 from .models import (
     UserProfile,
@@ -15,11 +15,11 @@ from .models import (
 from .alert import AlertPluginUserData, AlertPlugin
 
 
-class ServiceAdmin(reversion.VersionAdmin):
+class ServiceAdmin(VersionAdmin):
     pass
 
 
-class StatusCheckAdmin(reversion.VersionAdmin):
+class StatusCheckAdmin(VersionAdmin):
     pass
 
 

@@ -3,8 +3,8 @@ import json
 from django.core.urlresolvers import reverse
 from django.shortcuts import render
 from django.views.generic import UpdateView, CreateView
+from reversion.views import RevisionMixin
 from cabot.cabotapp.views import LoginRequiredMixin
-from cabot.cabotapp.revision_utils import RevisionMixin
 from cabot.metricsapp.api import get_es_status_check_fields, get_status_check_fields
 from cabot.metricsapp.forms import GrafanaElasticsearchStatusCheckForm, GrafanaElasticsearchStatusCheckUpdateForm
 from cabot.metricsapp.models import ElasticsearchStatusCheck, GrafanaDataSource
