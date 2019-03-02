@@ -106,6 +106,13 @@ class TestGrafanaQueryBuilder(TestCase):
         expected_queries = [get_json_file('grafana/query_builder/grafana_series_query_30m.json')]
         self.assertEqual(new_queries, expected_queries)
 
+    def test_adjust_time_range_derivative(self):
+        series = get_json_file('grafana/query_builder/grafana_derivative.json')
+        created_query = adjust_time_range([build_query(series, min_time='now-3h')], 180)
+        expected_query = get_json_file('grafana/query_builder/grafana_derivative_query.json')
+        self.assertEqual(expected_query, created_query)
+        validate_query(created_query)
+
 
 class TestGrafanaTemplating(TestCase):
     def test_templating(self):

@@ -209,7 +209,10 @@ def _add_aggs(search_aggs, series, min_time, default_interval):
         if bucket is None:
             raise ValidationError('Cannot find metric with id {} for pipeline metric'.format(pipeline_agg))
 
-        search_aggs.pipeline(metric_name, metric_type, buckets_path=bucket)
+        if metric.get('settings'):
+            search_aggs.pipeline(metric_name, metric_type, buckets_path=bucket, settings=settings)
+        else:
+            search_aggs.pipeline(metric_name, metric_type, buckets_path=bucket)
 
 
 def build_query(series, min_time=defs.ES_TIME_RANGE, default_interval=defs.ES_DEFAULT_INTERVAL):
@@ -320,6 +323,23 @@ def adjust_time_range(queries, time_range):
     minimum = '{}m'.format(time_range)
 
     for n, query in enumerate(queries):
+        # Minimum adjustment for derived metrics
+        date_histogram = _get_date_histogram(query)
+        aggs = query['aggs'].get('agg', {}).get('aggs', {}).get('agg', {}).get('aggs', {})
+        derivative = aggs.get('derivative')
+        logger.critical('derivative is {}'.format(derivative))
+        logger.critical('aggs are {}'.format(aggs))
+        # Add in another bucket for derivative to prevent issues with partial first buckets
+        if derivative:
+            minimum = '{}m'.format(time_range + parse(date_histogram['interval']) / 60)
+        else:
+            # For moving averages, add in <window> points to prevent anything from being impacted by partial
+            # points
+            moving_avg = aggs.get('moving_avg')
+            if moving_avg:
+                window = int(moving_avg.get('settings', {}).get('window', 0))
+                minimum = '{}m'.format(time_range + (parse(date_histogram['interval']) / 60) * window)
+
         # Find the minimum range value and set it
         for m, subquery in enumerate(query['query']['bool']['must']):
             range = subquery.get('range')
@@ -335,6 +355,17 @@ def adjust_time_range(queries, time_range):
         _adjust_extended_bounds(query['aggs'], minimum)
 
     return queries
+
+
+def _get_date_histogram(query):
+    next_level = query['aggs'].get('agg')
+
+    if not next_level or len(next_level) < 2:
+        return
+
+    for k, v in next_level.iteritems():
+        if k == 'date_histogram':
+            return k
 
 
 def _adjust_extended_bounds(aggs, minimum):
