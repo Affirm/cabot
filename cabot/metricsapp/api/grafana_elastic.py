@@ -325,13 +325,18 @@ def adjust_time_range(queries, time_range):
         date_histogram = _get_date_histogram(query)
 
         aggs = query['aggs']
-        # Try to find derivative or moving average
+        # Try to find derivative or moving average to extend bounds if necessary. This avoids situations where
+        # we use partial/empty buckets to calculate derivates/moving averages.
         while aggs.get('agg'):
             aggs = aggs['agg']['aggs']
             if aggs.get('derivative'):
+                # Derivatives are calculated based on the previous 1 datapoint, so extend the minimum
+                # by one interval.
                 minimum = '{}m'.format(time_range + parse(date_histogram['interval']) / 60)
                 break
             elif aggs.get('moving_avg'):
+                # Moving averages are calculated based on the previous <window> datapoints, so extend the minimum
+                # by <window> intervals.
                 window = int(aggs['moving_avg']['moving_avg'].get('window', 0))
                 minimum = '{}m'.format(time_range + (parse(date_histogram['interval']) / 60) * window)
                 break
