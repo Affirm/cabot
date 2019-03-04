@@ -241,8 +241,8 @@ LOGGING = {
 }
 
 # Disable logging for tests
-# if len(sys.argv) > 1 and sys.argv[1] == 'test':
-#     logging.disable(logging.CRITICAL)
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    logging.disable(logging.CRITICAL)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
