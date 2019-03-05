@@ -1,4 +1,4 @@
-version: '2'
+version: '2.1'
 services:
   web:
     env_file:
@@ -7,7 +7,7 @@ services:
     image: cabot:web
     command: python manage.py runserver 0.0.0.0:5001
     ports:
-     - "5001:5001"
+     - "${CABOT_PORT_MAPPING:-5001:5001}"  # publish port 5001 by default so browsers can connect to localhost:5001
     volumes:
      - .:/code
     links:
