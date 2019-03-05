@@ -367,7 +367,8 @@ def _get_date_histogram(query):
     for k, v in next_level.iteritems():
         if k == 'date_histogram':
             return v
-        return _get_date_histogram(next_level)
+
+    return _get_date_histogram(next_level)
 
 
 def _adjust_extended_bounds(date_histogram, minimum):
