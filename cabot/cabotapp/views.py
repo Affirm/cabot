@@ -480,7 +480,7 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
         if context is None:
             context = {}
         context['checkresults'] = self.object.statuscheckresult_set.order_by(
-            '-time_complete')[:100] 
+            '-time_complete')[:100]
         context['services'] = self.object.service_set.all()
 
         return super(StatusCheckDetailView, self).render_to_response(context, *args, **kwargs)
