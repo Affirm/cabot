@@ -38,13 +38,16 @@
 
 {% endblock %}
 
-{% if result.status_check.grafana_panel %}
 {% block js %}
 {% load compress %}
 {% load static %}
 {{ block.super }}
 <script type="text/javascript">
-window.DATA = JSON.parse('{{ result.raw_data|escapejs }}');
+try {
+    window.DATA = JSON.parse('{{ result.raw_data|escapejs }}');
+} catch (e) {
+    window.DATA = {};
+}
 </script>
 {% compress js %}
 <script type="text/javascript" src="{% static "arachnys/js/raphael.js" %}"></script>
@@ -96,4 +99,3 @@ linegraph.options.labels.forEach (label, i) ->
 </script>
 {% endcompress %}
 {% endblock js %}
-{% endif %}
