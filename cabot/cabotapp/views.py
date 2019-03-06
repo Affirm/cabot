@@ -481,6 +481,9 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
             context = {}
         context['checkresults'] = self.object.statuscheckresult_set.order_by(
             '-time_complete')[:100]
+        statuscheck_id = self.objects.statuscheckresult_set.first().status_check.id
+        context['services'] = Service.objects.filter(status_check__id=statuscheck_id)
+
         return super(StatusCheckDetailView, self).render_to_response(context, *args, **kwargs)
 
 
