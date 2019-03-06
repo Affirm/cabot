@@ -38,12 +38,13 @@
 
 {% endblock %}
 
+{% if result.status_check.grafana_panel %}
 {% block js %}
 {% load compress %}
 {% load static %}
 {{ block.super }}
 <script type="text/javascript">
-window.DATA = {{ result.raw_data|safe }};
+window.DATA = JSON.parse('{{ result.raw_data|escapejs }}');
 </script>
 {% compress js %}
 <script type="text/javascript" src="{% static "arachnys/js/raphael.js" %}"></script>
@@ -95,3 +96,4 @@ linegraph.options.labels.forEach (label, i) ->
 </script>
 {% endcompress %}
 {% endblock js %}
+{% endif %}
