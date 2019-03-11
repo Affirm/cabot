@@ -209,7 +209,8 @@ def _add_aggs(search_aggs, series, min_time, default_interval):
         if bucket is None:
             raise ValidationError('Cannot find metric with id {} for pipeline metric'.format(pipeline_agg))
 
-        search_aggs.pipeline(metric_name, metric_type, buckets_path=bucket)
+        metric_settings = metric.get('settings', {})
+        search_aggs.pipeline(metric_name, metric_type, buckets_path=bucket, **metric_settings)
 
 
 def build_query(series, min_time=defs.ES_TIME_RANGE, default_interval=defs.ES_DEFAULT_INTERVAL):
@@ -320,6 +321,26 @@ def adjust_time_range(queries, time_range):
     minimum = '{}m'.format(time_range)
 
     for n, query in enumerate(queries):
+        # Minimum adjustment for derived metrics
+        date_histogram = _get_date_histogram(query)
+
+        aggs = query['aggs']
+        # Try to find derivative or moving average to extend bounds if necessary. This avoids situations where
+        # we use partial/empty buckets to calculate derivates/moving averages.
+        while aggs.get('agg'):
+            aggs = aggs['agg']['aggs']
+            if aggs.get('derivative'):
+                # Derivatives are calculated based on the previous 1 datapoint, so extend the minimum
+                # by one interval.
+                minimum = '{}m'.format(time_range + parse(date_histogram['interval']) / 60)
+                break
+            elif aggs.get('moving_avg'):
+                # Moving averages are calculated based on the previous <window> datapoints, so extend the minimum
+                # by <window> intervals.
+                window = int(aggs['moving_avg']['moving_avg'].get('window', 0))
+                minimum = '{}m'.format(time_range + (parse(date_histogram['interval']) / 60) * window)
+                break
+
         # Find the minimum range value and set it
         for m, subquery in enumerate(query['query']['bool']['must']):
             range = subquery.get('range')
@@ -332,25 +353,30 @@ def adjust_time_range(queries, time_range):
                     query['query']['bool']['must'][m]['range'][time_field]['gte'] = 'now-{}'.format(minimum)
                     queries[n] = query
 
-        _adjust_extended_bounds(query['aggs'], minimum)
+        _adjust_extended_bounds(date_histogram, minimum)
 
     return queries
 
 
-def _adjust_extended_bounds(aggs, minimum):
-    """
-    Adjust extended bounds so we don't fetch more data than we need to
-    :param aggs: Takes in the 'aggs' part of a query
-    :param minimum: the time range to limit extended_bounds to - formatted as '{}m'.format(time_range)
-    :return: None
-    """
-    next_level = aggs.get('agg')
+def _get_date_histogram(query):
+    next_level = query['aggs'].get('agg')
 
     if not next_level or len(next_level) < 2:
         return
 
     for k, v in next_level.iteritems():
         if k == 'date_histogram':
-            v['extended_bounds']['min'] = 'now-{}'.format(minimum)
-            v['extended_bounds']['max'] = 'now'
-        return _adjust_extended_bounds(next_level['aggs'], minimum)
+            return v
+
+    return _get_date_histogram(next_level)
+
+
+def _adjust_extended_bounds(date_histogram, minimum):
+    """
+    Adjust extended bounds so we don't fetch more data than we need to
+    :param date_histogram: Takes in the 'date_histogram' part of a query
+    :param minimum: the time range to limit extended_bounds to - formatted as '{}m'.format(time_range)
+    :return: None
+    """
+    date_histogram['extended_bounds']['min'] = 'now-{}'.format(minimum)
+    date_histogram['extended_bounds']['max'] = 'now'

@@ -12,17 +12,7 @@ class PositiveIntegerMaxField(models.PositiveIntegerField):
         defaults.update(kwargs)
         return super(PositiveIntegerMaxField, self).formfield(**defaults)
 
-    def south_field_triple(self):
-        """
-        South cannot introspect custom fields, so we must add this as an
-        introspection rule to be able to run the schema migration
-        """
-        try:
-            from south.modelsinspector import introspector
-            cls_name = '{0}.{1}'.format(
-                self.__class__.__module__,
-                self.__class__.__name__)
-            args, kwargs = introspector(self)
-            return cls_name, args, kwargs
-        except ImportError:
-            pass
+    def deconstruct(self):
+        name, path, args, kwargs = super(PositiveIntegerMaxField, self).deconstruct()
+        kwargs["max_value"] = self.max_value
+        return name, path, args, kwargs

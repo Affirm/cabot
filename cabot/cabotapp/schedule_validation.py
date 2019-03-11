@@ -3,6 +3,9 @@ from django.utils import timezone
 from django.utils.timezone import make_naive
 
 import models
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _find_gaps(schedule, starting_from=None):
@@ -99,7 +102,14 @@ def _find_problems(schedule, current_time=None):
         # timezone name can change depending on what specific time we're talking about (due to daylight savings, etc...)
         # since we don't want to include the timezone info with every timestamp, we just use the time of the first gap
         # also note this method requires using pytz as the timezone backend (which we do)
-        tzname = tz.tzname(gaps[0][0], is_dst=False)
+        try:
+            tzname = tz.tzname(gaps[0][0], is_dst=False)
+        except TypeError:
+            # only SOME timezones support the is_dst parameter :|
+            tzname = tz.tzname(gaps[0][0])
+        except:
+            logger.exception('Could not get timezone name.')
+            tzname = 'UNKNOWN_TZ'
 
         gap_strs = ['* {} to {} ({})'.format(make_naive(gap[0], tz), make_naive(gap[1], tz),
                                              _delta_to_str(gap[1] - gap[0]))

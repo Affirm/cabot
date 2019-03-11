@@ -13,7 +13,7 @@ pymysql.install_as_MySQLdb()
 settings_dir = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(settings_dir)
 
-TEMPLATE_DEBUG = DEBUG = os.environ.get("DEBUG", False)
+DEBUG = os.environ.get("DEBUG", False)
 
 ADMINS = (
     ('Admin', os.environ.get('ADMIN_EMAIL', 'name@example.com')),
@@ -86,27 +86,41 @@ STATICFILES_FINDERS = (
 SECRET_KEY = os.environ.get(
     'DJANGO_SECRET_KEY', '2FL6ORhHwr5eX34pP9mMugnIOd3jzVuT45f7w430Mt5PnEwbcJgma0q8zUXNZ68A')
 
-# List of callables that know how to import templates from various sources.
-TEMPLATE_LOADERS = (
-    'django.template.loaders.filesystem.Loader',
-    'django.template.loaders.app_directories.Loader',
-)
-
 MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'social.apps.django_app.middleware.SocialAuthExceptionMiddleware',
+    'social_django.middleware.SocialAuthExceptionMiddleware',
     'rollbar.contrib.django.middleware.RollbarNotifierMiddleware',
+    'cabot.cabotapp.middleware.TimezoneMiddleware',
 )
 
 ROOT_URLCONF = 'cabot.urls'
 
-TEMPLATE_DIRS = (
-    os.path.join(PROJECT_ROOT, 'templates'),
-)
+TEMPLATES = [{
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': (
+        os.path.join(PROJECT_ROOT, 'templates'),
+    ),
+    'APP_DIRS': True,  # include [app]/templates/* in search paths
+    'OPTIONS': {
+        'context_processors': [
+            'django.template.context_processors.debug',
+            'django.template.context_processors.i18n',
+            'django.template.context_processors.media',
+            'django.template.context_processors.static',
+            'django.template.context_processors.tz',
+            'django.template.context_processors.request',
+            'django.contrib.auth.context_processors.auth',
+            'django.contrib.messages.context_processors.messages',
+            'social_django.context_processors.backends',
+            'social_django.context_processors.login_redirect',
+        ],
+        'debug': DEBUG,
+    },
+}]
 
 INSTALLED_APPS = (
     'django.contrib.auth',
@@ -119,16 +133,15 @@ INSTALLED_APPS = (
     'django.contrib.admin',
     # Uncomment the next line to enable admin documentation:
     # 'django.contrib.admindocs',
-    'south',
     'compressor',
     'polymorphic',
     'djcelery',
-    'mptt',
     'jsonify',
     'cabot.cabotapp',
     'cabot.metricsapp',
     'rest_framework',
-    'social.apps.django_app.default',
+    'social_django',
+    'timezone_field',
 )
 
 # Load additional apps from configuration file
@@ -180,10 +193,6 @@ LOGGING = {
         },
     },
     'handlers': {
-        'null': {
-            'level': 'DEBUG',
-            'class': 'django.utils.log.NullHandler',
-        },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
@@ -250,8 +259,8 @@ REST_FRAMEWORK = {
 }
 
 AUTHENTICATION_BACKENDS = (
-    'social.backends.google.GoogleOAuth2',
-    'social.backends.google.GoogleOAuth',
+    'social_core.backends.google.GoogleOAuth2',
+    'social_core.backends.google.GoogleOAuth',
     'django.contrib.auth.backends.ModelBackend',
 )
 
@@ -261,22 +270,6 @@ if AUTH_LDAP.lower() == "true":
     from settings_ldap import *  # noqa
     AUTHENTICATION_BACKENDS += tuple(['django_auth_ldap.backend.LDAPBackend'])
 
-
-_TEMPLATE_CONTEXT_PROCESSORS = (
-    'django.contrib.auth.context_processors.auth',
-)
-
-TEMPLATE_CONTEXT_PROCESSORS = (
-    'django.contrib.auth.context_processors.auth',
-    'django.core.context_processors.debug',
-    'django.core.context_processors.i18n',
-    'django.core.context_processors.media',
-    'django.core.context_processors.static',
-    'django.core.context_processors.tz',
-    'django.contrib.messages.context_processors.messages',
-    'social.apps.django_app.context_processors.backends',
-    'social.apps.django_app.context_processors.login_redirect',
-)
 
 SOCIAL_AUTH_AUTHENTICATION_BACKENDS = (
     'social.backends.google.GoogleOAuth2',
@@ -295,7 +288,7 @@ GOOGLE_OAUTH2_SOCIAL_AUTH_RAISE_EXCEPTIONS = True
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.environ.get('GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.environ.get('GOOGLE_OAUTH2_SECRET')
 COMPRESS_ENABLED = False
-LOGIN_REDIRECT_URL = '/'
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = '/'  # default URL to redirect to if /next isn't present
 
 # Use cloudwatch to monitor cabot alerts
 AWS_CLOUDWATCH_SYNC = os.environ.get('AWS_CLOUDWATCH_SYNC', False)
@@ -310,6 +303,7 @@ ROLLBAR = {
     'access_token': os.environ.get('ROLLBAR_ACCESS_TOKEN', None),
     'environment': os.environ.get('ROLLBAR_ENVIRONMENT', 'prod'),
     'branch': os.environ.get('ROLLBAR_BRANCH', 'master'),
+    'patch_debugview': False,  # if True, test alert exceptions cause infinite recursion in pyrollbar :|
     'root': PROJECT_ROOT,
 }
 
@@ -330,5 +324,3 @@ TEST_RUNNER = 'xmlrunner.extra.djangotestrunner.XMLTestRunner'
 TEST_OUTPUT_DIR = os.environ.get('TEST_OUTPUT_DIR', '.')
 
 DISABLE_LOGIN = os.environ.get('DISABLE_LOGIN', 'False').lower() in ['true', 'yes', '1']
-
-SOUTH_TESTS_MIGRATE = False

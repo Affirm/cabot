@@ -6,6 +6,8 @@ from .test_elasticsearch import get_json_file
 
 
 class TestGrafanaQueryBuilder(TestCase):
+    maxDiff = None
+
     def test_grafana_query(self):
         """Basic query building"""
         series = get_json_file('grafana/query_builder/grafana_series.json')
@@ -43,14 +45,6 @@ class TestGrafanaQueryBuilder(TestCase):
         series = get_json_file('grafana/query_builder/grafana_multiple_metrics.json')
         created_query = build_query(series, min_time='now-30m')
         expected_query = get_json_file('grafana/query_builder/grafana_multiple_metrics_query.json')
-        self.assertEqual(expected_query, created_query)
-        validate_query(created_query)
-
-    def test_derivative(self):
-        """Derivative metric with hidden field"""
-        series = get_json_file('grafana/query_builder/grafana_derivative.json')
-        created_query = build_query(series, min_time='now-3h')
-        expected_query = get_json_file('grafana/query_builder/grafana_derivative_query.json')
         self.assertEqual(expected_query, created_query)
         validate_query(created_query)
 
@@ -105,6 +99,28 @@ class TestGrafanaQueryBuilder(TestCase):
         new_queries = adjust_time_range(queries, 30)
         expected_queries = [get_json_file('grafana/query_builder/grafana_series_query_30m.json')]
         self.assertEqual(new_queries, expected_queries)
+
+    def test_derivative_adjusted(self):
+        """
+        Derivative metric with hidden field. Should add 1 * interval (1m) to the time range to
+        prevent issues with partial points being used to calculate the derivative.
+        """
+        series = get_json_file('grafana/query_builder/grafana_derivative.json')
+        created_query = adjust_time_range([build_query(series, min_time='now-3h')], 180)[0]
+        expected_query = get_json_file('grafana/query_builder/grafana_adjusted_derivative_query.json')
+        self.assertEqual(expected_query, created_query)
+        validate_query(created_query)
+
+    def test_moving_avg_adjusted(self):
+        """
+        Moving average metric with hidden field. Should add interval (5m) * moving average range (10)
+        to the time range to prevent partial points.
+        """
+        series = get_json_file('grafana/query_builder/grafana_moving_avg.json')
+        created_query = adjust_time_range([build_query(series, min_time='now-3h')], 180)[0]
+        expected_query = get_json_file('grafana/query_builder/grafana_adjusted_moving_avg_query.json')
+        self.assertEqual(expected_query, created_query)
+        validate_query(created_query)
 
 
 class TestGrafanaTemplating(TestCase):

@@ -1,4 +1,4 @@
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.db import models
 from django.core.validators import MinValueValidator
 from cabot.cabotapp.models import Service, StatusCheck
@@ -39,7 +39,7 @@ class MetricsStatusCheckBase(StatusCheck):
         (Service.CRITICAL_STATUS, 'Critical'),
     )
 
-    source = models.ForeignKey('MetricsSourceBase')
+    source = models.ForeignKey('MetricsSourceBase', on_delete=models.CASCADE)
     check_type = models.CharField(
         choices=CHECK_TYPES,
         max_length=30,
@@ -74,7 +74,8 @@ class MetricsStatusCheckBase(StatusCheck):
     )
     grafana_panel = models.ForeignKey(
         'GrafanaPanel',
-        null=True
+        null=True,
+        on_delete=models.CASCADE,
     )
     auto_sync = models.NullBooleanField(
         default=True,

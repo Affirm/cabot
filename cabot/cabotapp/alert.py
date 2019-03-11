@@ -1,7 +1,7 @@
 import logging
 
 from django.db import models
-from polymorphic import PolymorphicModel
+from polymorphic.models import PolymorphicModel
 
 from cabot.cabotapp.utils import create_failing_service_mock
 
@@ -40,7 +40,7 @@ class AlertPlugin(PolymorphicModel):
 
 class AlertPluginUserData(PolymorphicModel):
     title = models.CharField(max_length=30, editable=False)
-    user = models.ForeignKey('UserProfile', editable=False)
+    user = models.ForeignKey('UserProfile', editable=False, on_delete=models.CASCADE)
 
     # This is used to add the "Send Test Alert" button to the edit page.
     # We need this information to be able to map AlertPluginUserData subclasses to their AlertPlugins.

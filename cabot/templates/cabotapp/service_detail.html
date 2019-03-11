@@ -148,13 +148,14 @@
 {% block js %}
 {% load compress %}
 {% load jsonify %}
+{% load static %}
 {{ block.super }}
 <script type="text/javascript">
   window.SERVICE_HISTORY = {{ service.recent_snapshots|jsonify }}
 </script>
-<script type="text/javascript" src="{{ STATIC_URL }}arachnys/js/d3.js"></script>
+<script type="text/javascript" src="{% static "arachnys/js/d3.js" %}"></script>
 {% compress js %}
-<script type="text/javascript" src="{{ STATIC_URL }}arachnys/js/rickshaw.js"></script>
+<script type="text/javascript" src="{% static "arachnys/js/rickshaw.js" %}"></script>
 <script type="text/coffeescript">
 
 $(document).ready ->

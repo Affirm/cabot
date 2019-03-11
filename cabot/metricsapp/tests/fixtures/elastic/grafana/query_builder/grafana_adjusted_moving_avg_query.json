@@ -1,0 +1,48 @@
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "query_string": {
+            "analyze_wildcard": true,
+            "query": "link.zelda"
+          }
+        },
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "now-230m"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "agg": {
+      "date_histogram": {
+        "field": "@timestamp",
+        "interval": "5m",
+        "extended_bounds": {
+          "max": "now",
+          "min": "now-230m"
+        }
+      },
+      "aggs": {
+        "moving_avg": {
+          "moving_avg": {
+            "buckets_path": "sum_hidethismetric",
+            "minimize": false,
+            "model": "linear",
+            "window": 10
+          }
+        },
+        "sum_hidethismetric": {
+          "sum": {
+            "field": "count"
+          }
+        }
+      }
+    }
+  }
+}

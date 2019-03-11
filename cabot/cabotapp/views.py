@@ -1,12 +1,13 @@
 import six
-from django.template import RequestContext, loader
+from django.template import loader
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponse, HttpResponseRedirect
 from django.core.urlresolvers import reverse_lazy
 from django.conf import settings
+from timezone_field import TimeZoneFormField
 
-from cabot.cabotapp.alert import AlertPlugin, update_alert_plugins
+from cabot.cabotapp.alert import AlertPlugin
 from models import (StatusCheck,
                     JenkinsStatusCheck,
                     HttpStatusCheck,
@@ -43,8 +44,8 @@ from django.db import transaction
 from cabot.cabotapp.utils import format_datetime
 from models import AlertPluginUserData
 from django.contrib import messages
-from social.exceptions import AuthFailed
-from social.apps.django_app.views import complete
+from social_core.exceptions import AuthFailed
+from social_django.views import complete
 
 from itertools import groupby, dropwhile, izip_longest
 import requests
@@ -110,13 +111,13 @@ def subscriptions(request):
     t = loader.get_template('cabotapp/subscriptions.html')
     services = Service.objects.all()
     users = User.objects.filter(is_active=True)
-    c = RequestContext(request, {
+    c = {
         'services': services,
         'users': users,
         'duty_officers': get_all_duty_officers(),
         'fallback_officers': get_all_fallback_officers(),
-    })
-    return HttpResponse(t.render(c))
+    }
+    return HttpResponse(t.render(c, request))
 
 
 @cabot_login_required
@@ -222,7 +223,7 @@ class JenkinsStatusCheckForm(StatusCheckForm):
         model = JenkinsStatusCheck
         grouped_fields = (
             ('Basic', ('name', 'active', 'importance', 'service_set')),
-            ('Jenkins', ('max_queued_build_time', 'max_build_failures', 'retries')),
+            ('Jenkins', ('max_queued_build_time', 'max_build_failures', 'retries', 'frequency')),
             ('Advanced', ('use_activity_counter', 'run_delay', 'runbook')),
         )
         widgets = dict(**base_widgets)
@@ -502,6 +503,20 @@ class GeneralSettingsForm(forms.ModelForm):
             'is_active': 'Enabled'
         }
 
+    def __init__(self, *args, **kwargs):
+        super(GeneralSettingsForm, self).__init__(*args, **kwargs)
+
+        self.profile = UserProfile.objects.get_or_create(user=self.instance)[0] if self.instance else None
+        tz = self.profile.timezone if self.instance else None
+        self.fields['timezone'] = TimeZoneFormField(initial=tz)
+
+    def save(self, *args, **kwargs):
+        ret = super(GeneralSettingsForm, self).save(*args, **kwargs)
+        if self.profile:  # TODO respect commit kwarg?
+            self.profile.timezone = self.cleaned_data['timezone']
+            self.profile.save()
+        return ret
+
 
 class UserProfileUpdateAlert(LoginRequiredMixin, UpdateView):
     """
@@ -539,6 +554,7 @@ class UserProfileUpdateAlert(LoginRequiredMixin, UpdateView):
         class AlertPreferencesForm(forms.ModelForm):
             class Meta:
                 model = type(self.object)
+                exclude = []
 
         return AlertPreferencesForm
 
@@ -630,8 +646,6 @@ class ServiceDetailView(LoginRequiredMixin, DetailView):
 class ServiceCreateView(LoginRequiredMixin, CreateView):
     model = Service
     form_class = ServiceForm
-
-    update_alert_plugins()
 
     def get_success_url(self):
         return reverse('service', kwargs={'pk': self.object.id})
