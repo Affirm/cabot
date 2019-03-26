@@ -1,4 +1,4 @@
-FROM python:2.7-jessie
+FROM python:2.7-stretch
 
 ENV PYTHONUNBUFFERED 1
 
@@ -14,16 +14,17 @@ RUN apt-get update && apt-get install -y \
         libsasl2-dev \
         libldap2-dev \
         libpq-dev \
-        libmysqlclient-dev \
-        npm \
+        default-libmysqlclient-dev \
         wget
+
+# install node/npm (which isn't in the default repos) so we can install coffeescript and less
+RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
+RUN apt-get install nodejs
 
 RUN npm install -g \
         --registry http://registry.npmjs.org/ \
-        coffee-script \
+        coffeescript \
         less@1.3
-
-RUN ln -s `which nodejs` /usr/bin/node
 
 RUN pip install --upgrade pip
 
