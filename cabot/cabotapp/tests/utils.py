@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 import requests
 from django.utils import timezone
 from django.contrib.auth.models import Permission, User

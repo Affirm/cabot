@@ -98,6 +98,14 @@ class MetricsStatusCheckBase(StatusCheck):
                   'or insert a single data point with value zero.'
     )
 
+    tag_fetch_error = "fetch_error"
+    tag_no_data = "no_data"
+
+    @staticmethod
+    def tag_failing(importance, series_name):
+        # type: (str, str) -> str
+        return "{}:{}".format(importance.lower(), series_name)
+
     def _run(self):
         """Run a status check"""
         return run_metrics_check(self)

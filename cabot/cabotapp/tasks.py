@@ -8,7 +8,7 @@ from celery.task import task
 from django.core.mail import EmailMessage
 from django.core.urlresolvers import reverse
 
-from cabot.cabotapp.models import Schedule
+from cabot.cabotapp.models import Schedule, StatusCheckResultTag, StatusCheckResult
 from cabot.cabotapp.schedule_validation import update_schedule_problems
 from cabot.cabotapp.utils import build_absolute_url
 from cabot.celery.celery_queue_config import STATUS_CHECK_TO_QUEUE
@@ -224,3 +224,13 @@ def send_schedule_problems_email(schedule_id):
                             recipient_list=recipients)
         except Exception as e:
             logger.exception('Error sending schedule problems email: {}'.format(e))
+
+
+@task(ignore_result=True)
+def clean_orphaned_tags():
+    result_tags = StatusCheckResult.tags.through.objects.values('statuscheckresulttag')
+    orphaned_tags = StatusCheckResultTag.objects.exclude(pk__in=result_tags)
+
+    logger.info("Deleting {} orphaned tags (out of {} total tags)..."
+                .format(orphaned_tags.count(), StatusCheckResultTag.objects.count()))
+    orphaned_tags.delete()

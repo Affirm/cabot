@@ -68,6 +68,7 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.jenkins_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertTrue(self.jenkins_check.last_result().succeeded)
+        self.assertFalse(self.jenkins_check.last_result().tags.exists())
 
     @patch('cabot.cabotapp.jenkins.requests.get', fake_jenkins_response)
     def test_jenkins_run(self):
@@ -77,6 +78,7 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.jenkins_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.jenkins_check.last_result().succeeded)
+        self.assertEqual(list(self.jenkins_check.last_result().tags.values_list('value', flat=True)), ['bad_response'])
 
     @patch('cabot.cabotapp.jenkins.requests.get', fake_jenkins_success)
     def test_jenkins_consecutive_failures(self):
@@ -86,6 +88,8 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.jenkins_check2.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.jenkins_check2.last_result().succeeded)
+        self.assertEqual(list(self.jenkins_check2.last_result().tags.values_list('value', flat=True)),
+                         ['max_consecutive_failures_exceeded'])
 
     @patch('cabot.cabotapp.jenkins.requests.get', jenkins_blocked_response)
     def test_jenkins_blocked_build(self):
@@ -95,6 +99,8 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.jenkins_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.jenkins_check.last_result().succeeded)
+        self.assertEqual(list(self.jenkins_check.last_result().tags.values_list('value', flat=True)),
+                         ['max_queued_build_time_exceeded'])
 
     @patch('cabot.cabotapp.models.requests.get', throws_timeout)
     def test_timeout_handling_in_jenkins(self):
@@ -106,6 +112,8 @@ class TestCheckRun(LocalTestCase):
         self.assertFalse(self.jenkins_check.last_result().succeeded)
         self.assertIn(u'Error fetching from Jenkins - something bad happened',
                       self.jenkins_check.last_result().error)
+        self.assertEqual(list(self.jenkins_check.last_result().tags.values_list('value', flat=True)),
+                         ['bad_response'])
 
     @patch('cabot.cabotapp.models.requests.request', fake_http_200_response)
     def test_http_run(self):
@@ -123,6 +131,9 @@ class TestCheckRun(LocalTestCase):
         self.assertFalse(self.http_check.last_result().succeeded)
         self.assertEqual(self.http_check.calculated_status,
                          Service.CALCULATED_FAILING_STATUS)
+        self.assertEqual(list(self.http_check.last_result().tags.values_list('value', flat=True)),
+                         ['text_match_failed'])
+
         # Unicode
         self.http_check.text_match = u'This is not in the http response!!'
         self.http_check.save()
@@ -130,6 +141,8 @@ class TestCheckRun(LocalTestCase):
         self.assertFalse(self.http_check.last_result().succeeded)
         self.assertEqual(self.http_check.calculated_status,
                          Service.CALCULATED_FAILING_STATUS)
+        self.assertEqual(list(self.http_check.last_result().tags.values_list('value', flat=True)),
+                         ['text_match_failed'])
 
     @patch('cabot.cabotapp.models.requests.request', throws_timeout)
     def test_timeout_handling_in_http(self):
@@ -141,6 +154,8 @@ class TestCheckRun(LocalTestCase):
         self.assertFalse(self.http_check.last_result().succeeded)
         self.assertIn(u'Request error occurred: something bad happened',
                       self.http_check.last_result().error)
+        self.assertEqual(list(self.http_check.last_result().tags.values_list('value', flat=True)),
+                         ['RequestException'])
 
     @patch('cabot.cabotapp.models.requests.request', fake_http_404_response)
     def test_http_run_bad_resp(self):
@@ -152,6 +167,8 @@ class TestCheckRun(LocalTestCase):
         self.assertFalse(self.http_check.last_result().succeeded)
         self.assertEqual(self.http_check.calculated_status,
                          Service.CALCULATED_FAILING_STATUS)
+        self.assertEqual(list(self.http_check.last_result().tags.values_list('value', flat=True)),
+                         ['status:404'])
 
     @patch('cabot.cabotapp.models.socket.create_connection', fake_tcp_success)
     def test_tcp_success(self):
@@ -161,6 +178,7 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.tcp_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertTrue(self.tcp_check.last_result().succeeded)
+        self.assertEqual(list(self.tcp_check.last_result().tags.values_list('value', flat=True)), [])
 
     @patch('cabot.cabotapp.models.socket.create_connection', fake_tcp_failure)
     def test_tcp_failure(self):
@@ -171,6 +189,7 @@ class TestCheckRun(LocalTestCase):
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.tcp_check.last_result().succeeded)
         self.assertFalse(self.tcp_check.last_result().error, 'timed out')
+        self.assertEqual(list(self.tcp_check.last_result().tags.values_list('value', flat=True)), ['ETIMEDOUT'])
 
     def test_update_service(self):
         service_id = self.service.id

@@ -477,6 +477,11 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'check'
     template_name = 'cabotapp/statuscheck_detail.html'
 
+    def get_context_data(self, **kwargs):
+        ctx = super(StatusCheckDetailView, self).get_context_data(**kwargs)
+        ctx['show_tags'] = self.request.GET.get('show_tags', False)
+        return ctx
+
     def render_to_response(self, context, *args, **kwargs):
         if context is None:
             context = {}

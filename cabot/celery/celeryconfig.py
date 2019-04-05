@@ -29,6 +29,10 @@ CELERYBEAT_SCHEDULE = {
         'task': 'cabot.cabotapp.tasks.clean_db',
         'schedule': timedelta(seconds=defs.CLEAN_DB_FREQUENCY),
     },
+    'clean-orphaned-tags': {
+        'task': 'cabot.cabotapp.tasks.clean_orphaned_tags',
+        'schedule': timedelta(seconds=defs.CLEAN_ORPHANED_TAGS_FREQUENCY),
+    },
     'sync-all-grafana-checks': {
         'task': 'cabot.metricsapp.tasks.sync_all_grafana_checks',
         'schedule': timedelta(seconds=defs.SYNC_ALL_GRAFANA_CHECKS_FREQUENCY)
@@ -74,6 +78,10 @@ CELERY_ROUTES = {
         'routing_key': 'batch',
     },
     'cabot.cabotapp.tasks.clean_db': {
+        'queue': 'maintenance',
+        'routing_key': 'maintenance',
+    },
+    'cabot.cabotapp.tasks.clean_orphaned_tags': {
         'queue': 'maintenance',
         'routing_key': 'maintenance',
     },

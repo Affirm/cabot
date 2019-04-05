@@ -1,3 +1,5 @@
+import errno
+
 from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -539,28 +541,40 @@ class StatusCheck(PolymorphicModel):
         next_run_time = self.last_run + timedelta(minutes=self.frequency)
         return timezone.now() > next_run_time
 
+    @transaction.atomic()
     def run(self):
         start = timezone.now()
         try:
-            result = self._run()
-        except SoftTimeLimitExceeded as e:
-            result = StatusCheckResult(status_check=self)
-            result.error = u'Error in performing check: Celery soft time limit exceeded'
-            result.succeeded = False
+            result, tags = self._run()
+        except SoftTimeLimitExceeded:
+            result = StatusCheckResult(status_check=self, succeeded=False,
+                                       error=u'Error in performing check: Celery soft time limit exceeded')
+            tags = ['celery_timeout']
         except Exception as e:
-            result = StatusCheckResult(status_check=self)
-            result.error = u'Error in performing check: %s' % (e,)
-            result.succeeded = False
+            result = StatusCheckResult(status_check=self, succeeded=False,
+                                       error=u'Error in performing check: %s' % (e,))
+            tags = ['run_error']
+
         finish = timezone.now()
         result.time = start
         result.time_complete = finish
         result.save()
+
+        # would like to do this in bulk, but django can't fetch the tag object PKs from bulk_create()...
+        try:
+            tag_objs = [StatusCheckResultTag.objects.get_or_create(value=t)[0] for t in tags if t]
+            result.tags.add(*tag_objs)
+        except:  # noqa
+            # can fail if a tag's name is too long
+            logger.exception("Error creating/adding tags: %s", tags)
+
         self.last_run = finish
         self.save()
 
     def _run(self):
+        # type: () -> Tuple[StatusCheckResult, List[str]]
         """
-        Implement on subclasses. Should return a `CheckResult` instance.
+        Implement on subclasses. Should return a `StatusCheckResult` instance and a list of tags.
         """
         raise NotImplementedError('Subclasses should implement')
 
@@ -747,6 +761,20 @@ class HttpStatusCheck(StatusCheck):
         help_text='Status code expected from endpoint.'
     )
 
+    @staticmethod
+    def tag_status(status):
+        # type: (int) -> str
+        return "status:{}".format(status)
+
+    @staticmethod
+    def tag_exception(exception):
+        # use exception type as tag name (e.g. ConnectionError)
+        return type(exception).__name__
+
+    tag_text_match_failed = "text_match_failed"
+    tag_missing_header = "missing_header"
+    tag_unexpected_header = "unexpected_header"
+
     def _run(self):
         result = StatusCheckResult(status_check=self)
         if self.username:
@@ -783,6 +811,7 @@ class HttpStatusCheck(StatusCheck):
         except requests.RequestException as e:
             result.error = u'Request error occurred: %s' % (e.message,)
             result.succeeded = False
+            return result, [self.tag_exception(e)]
         else:
             result.raw_data = resp.content
             result.succeeded = False
@@ -790,28 +819,28 @@ class HttpStatusCheck(StatusCheck):
             if self.status_code and resp.status_code != int(self.status_code):
                 result.error = u'Wrong code: got %s (expected %s)' % (
                     resp.status_code, int(self.status_code))
-                return result
+                return result, [self.tag_status(resp.status_code)]
 
             if self.text_match is not None:
                 if not re.search(self.text_match, resp.content):
                     result.error = u'Failed to find match regex /%s/ in response body' % self.text_match
-                    return result
+                    return result, [self.tag_text_match_failed]
 
             if type(header_match) is dict and header_match:
                 for header, match in header_match.iteritems():
                     if header not in resp.headers:
                         result.error = u'Missing response header: %s' % (header)
-                        return result
+                        return result, [self.tag_missing_header]
 
                     value = resp.headers[header]
                     if not re.match(match, value):
                         result.error = u'Mismatch in header: %s / %s' % (header, value)
-                        return result
+                        return result, [self.tag_unexpected_header]
 
             # Mark it as success. phew!!
             result.succeeded = True
 
-        return result
+        return result, []
 
 
 class JenkinsStatusCheck(StatusCheck):
@@ -846,6 +875,13 @@ class JenkinsStatusCheck(StatusCheck):
     def failing_short_status(self):
         return 'Job failing on Jenkins'
 
+    tag_job_not_found = "job_not_found"
+    tag_bad_response = "bad_response"
+    tag_job_disabled = "job_disabled"
+    tag_max_queued_build_time_exceeded = "max_queued_build_time_exceeded"
+    tag_max_consecutive_failures_exceeded = "max_consecutive_failures_exceeded"
+    tag_build_missing = "build_missing"
+
     def _run(self):
         result = StatusCheckResult(status_check=self)
         try:
@@ -855,7 +891,7 @@ class JenkinsStatusCheck(StatusCheck):
             if status['status_code'] == 404:
                 result.error = u'Job %s not found on Jenkins' % self.name
                 result.succeeded = False
-                return result
+                return result, [self.tag_job_not_found]
             elif status['status_code'] >= 400:
                 # Will fall through to next block
                 raise Exception(u'returned %s' % status['status_code'])
@@ -865,12 +901,14 @@ class JenkinsStatusCheck(StatusCheck):
             # Ugly to do it here but...
             result.error = u'Error fetching from Jenkins - %s' % e.message
             result.succeeded = False
-            return result
+            return result, [self.tag_bad_response]
 
+        tags = []
         if not active:
             # We will fail if the job has been disabled
             result.error = u'Job "%s" disabled on Jenkins' % self.name
             result.succeeded = False
+            tags.append(self.tag_job_disabled)
         else:
             result.succeeded = True
 
@@ -882,6 +920,7 @@ class JenkinsStatusCheck(StatusCheck):
                         int(status['blocked_build_time']),
                         self.max_queued_build_time,
                     )
+                    tags.append(self.tag_max_queued_build_time_exceeded)
 
             if result.succeeded and status['consecutive_failures'] is not None:
                 if status['consecutive_failures'] > self.max_build_failures:
@@ -891,16 +930,18 @@ class JenkinsStatusCheck(StatusCheck):
                         int(status['consecutive_failures']),
                         self.max_build_failures,
                     )
+                    tags.append(self.tag_max_consecutive_failures_exceeded)
                 elif status['consecutive_failures'] < 0:
                     result.succeeded = False
                     result.error = u'Job "%s" Last Completed Build not Found' % (
                         self.name
                     )
+                    tags.append(self.tag_build_missing)
 
             if not result.succeeded:
                 result.raw_data = status
 
-        return result
+        return result, tags
 
 
 class TCPStatusCheck(StatusCheck):
@@ -927,15 +968,24 @@ class TCPStatusCheck(StatusCheck):
 
     icon = 'glyphicon glyphicon-text-wide'
 
+    @staticmethod
+    def tag_exception(exception):
+        # type: (socket.error) -> str
+        # tag with human name of the socket's posix errno
+        # special logic for socket.timeout, since it doesn't set errno :shakes_fist:
+        error_no = errno.ETIMEDOUT if type(exception) == socket.timeout else abs(exception.errno)
+        return "{}".format(errno.errorcode.get(error_no, error_no))
+
     def _run(self):
         """
         We wish to provide a method to ensure a TCP endpoint is still up. To
         achieve this, we use the python socket library to connect to the TCP
         service listening on the specified address and port. In other words,
         if this call succeeds (i.e. returns without raising an exception and/or
-        timeing out), we can conclude that the TCP endpoint is valid.
+        timing out), we can conclude that the TCP endpoint is valid.
         """
         result = StatusCheckResult(status_check=self)
+        tags = []
 
         try:
             socket.create_connection((self.address, self.port), self.timeout)
@@ -943,8 +993,16 @@ class TCPStatusCheck(StatusCheck):
         except socket.error as e:
             result.error = str(e)
             result.succeeded = False
+            tags.append(self.tag_exception(e))
 
-        return result
+        return result, tags
+
+
+class StatusCheckResultTag(models.Model):
+    value = models.CharField(max_length=255, blank=False, primary_key=True)
+
+    def __unicode__(self):
+        return self.value
 
 
 class StatusCheckResult(models.Model):
@@ -961,6 +1019,8 @@ class StatusCheckResult(models.Model):
     raw_data = models.TextField(null=True)
     succeeded = models.BooleanField(default=False)
     error = models.TextField(null=True)
+
+    tags = models.ManyToManyField(StatusCheckResultTag)
 
     # Jenkins specific
     job_number = models.PositiveIntegerField(null=True)

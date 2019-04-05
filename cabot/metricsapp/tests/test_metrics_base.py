@@ -46,19 +46,21 @@ class TestMetricsBase(TestCase):
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
     def test_failure(self):
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 9.2 not <= 9.0')
+        self.assertEqual(tags, ['warning:prod.good.data'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
     def test_success(self):
         self.metrics_check.warning_value = 10.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
+        self.assertEqual(tags, [])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
@@ -66,12 +68,12 @@ class TestMetricsBase(TestCase):
         # maximum value in the series
         self.metrics_check.warning_value = 9.66092
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertTrue(result.succeeded)
 
         self.metrics_check.warning_value = 9.66091
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
@@ -81,12 +83,12 @@ class TestMetricsBase(TestCase):
         # maximum value in the series
         self.metrics_check.warning_value = 9.66092
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
 
         self.metrics_check.warning_value = 9.660921
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertTrue(result.succeeded)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
@@ -96,12 +98,12 @@ class TestMetricsBase(TestCase):
         # minimum value in the series
         self.metrics_check.warning_value = 1.16092
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertTrue(result.succeeded)
 
         self.metrics_check.warning_value = 1.16093
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
@@ -111,12 +113,12 @@ class TestMetricsBase(TestCase):
         # minimum value in the series
         self.metrics_check.warning_value = 1.16092
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
 
         self.metrics_check.warning_value = 1.160915
         self.metrics_check.save()
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertTrue(result.succeeded)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
@@ -124,21 +126,22 @@ class TestMetricsBase(TestCase):
         """
         Run check at the current time (all the points are outdated). Should succeed
         """
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', get_series_error)
     def test_error(self):
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, 'Error fetching metric from source: None')
+        self.assertEqual(tags, ['fetch_error'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     def test_raw_data(self):
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         series = mock_get_series()
         threshold = {'series': 'alert.warning_threshold', 'datapoints': [[1387817760, 9.0], [1387818600, 9.0]]}
         series['data'].append(threshold)
@@ -164,42 +167,46 @@ class TestMultipleThresholds(TestCase):
     @patch('time.time', mock_time)
     def test_warning(self):
         """Test cases with both high alert and warning values"""
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 9.2 not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
+        self.assertEqual(tags, ['warning:prod.good.data'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
     def test_critical(self):
         self.metrics_check.high_alert_value = 9.5
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL prod.good.data: 9.7 not <= 9.5')
         self.assertEqual(self.metrics_check.importance, Service.CRITICAL_STATUS)
+        self.assertEqual(tags, ['critical:prod.good.data', 'warning:prod.good.data'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
     def test_error(self):
         self.metrics_check.high_alert_value = 9.5
         self.metrics_check.high_alert_importance = Service.ERROR_STATUS
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'ERROR prod.good.data: 9.7 not <= 9.5')
         self.assertEqual(self.metrics_check.importance, Service.ERROR_STATUS)
+        self.assertEqual(tags, ['error:prod.good.data', 'warning:prod.good.data'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
     def test_success(self):
         self.metrics_check.warning_value = 10.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
+        self.assertEqual(tags, [])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
     def test_multiple_thresholds(self):
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         series = mock_get_series()
 
         warning_threshold = {'series': 'alert.warning_threshold',
@@ -215,11 +222,12 @@ class TestMultipleThresholds(TestCase):
     def test_warning_only(self):
         """Check only has a warning value"""
         self.metrics_check.high_alert_value = None
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 9.2 not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
+        self.assertEqual(tags, ['warning:prod.good.data'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
@@ -227,20 +235,22 @@ class TestMultipleThresholds(TestCase):
         """Check only has a high alert value"""
         self.metrics_check.warning_value = None
         self.metrics_check.high_alert_value = 9.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL prod.good.data: 9.2 not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.CRITICAL_STATUS)
+        self.assertEqual(tags, ['critical:prod.good.data'])
 
         # It should also work for warnings
         self.metrics_check.warning_value = 9.0
         self.metrics_check.high_alert_value = 10.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 9.2 not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
+        self.assertEqual(tags, ['warning:prod.good.data'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
@@ -254,20 +264,22 @@ class TestMultipleThresholds(TestCase):
         # Verify that it works for high alerts (error, critical)
         self.metrics_check.warning_value = 8.0
         self.metrics_check.high_alert_value = 9.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL prod.good.data: 2 consecutive points not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.CRITICAL_STATUS)
+        self.assertEqual(tags, ['critical:prod.good.data', 'warning:prod.good.data', 'warning:stage.cool.data'])
 
         # It should also work for warnings
         self.metrics_check.warning_value = 9.0
         self.metrics_check.high_alert_value = 10.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 2 consecutive points not <= 9.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
+        self.assertEqual(tags, ['warning:prod.good.data'])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
@@ -281,18 +293,20 @@ class TestMultipleThresholds(TestCase):
         # Not enough points above the high-alert threshold, so we should get a warning
         self.metrics_check.warning_value = 8.0
         self.metrics_check.high_alert_value = 9.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertEqual(result.status_check, self.metrics_check)
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING prod.good.data: 3 consecutive points not <= 8.0')
         self.assertEqual(self.metrics_check.importance, Service.WARNING_STATUS)
+        self.assertEqual(tags, ['warning:prod.good.data', 'warning:stage.cool.data'])
 
         # Not enough points above the warning threshold, so we shouldn't get an alert
         self.metrics_check.warning_value = 9.0
         self.metrics_check.high_alert_value = 10.0
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertTrue(result.succeeded)
         self.assertIsNone(result.error)
+        self.assertEqual(tags, [])
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase.get_series', mock_get_series)
     @patch('time.time', mock_time)
@@ -312,11 +326,12 @@ class TestMultipleThresholds(TestCase):
         self.metrics_check.warning_value = 9.0
         self.metrics_check.high_alert_value = 10.0
         self.metrics_check.consecutive_failures = 2
-        result = self.metrics_check._run()
+        result, tags = self.metrics_check._run()
         self.assertFalse(result.succeeded)
         # If this fails, we might see:
         # "CRITICAL alert.high_alert_threshold: 2 consecutive points not < 10.0"
         self.assertEqual(result.error, u'WARNING prod.good.data: 2 consecutive points not < 9.0')
+        self.assertEqual(tags, ['warning:prod.good.data'])
 
 
 class TestEmptySeries(TestCase):
@@ -342,9 +357,10 @@ class TestEmptySeries(TestCase):
         expected = [{'datapoints': [[mock_time(), 0.0]], 'series': 'no_data_fill_0'}]
         self.assertEqual(self.status_check.get_series()['data'], expected)
         # The test should fail
-        result = self.status_check._run()
+        result, tags = self.status_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL no_data_fill_0: 0.0 not > 5.0')
+        self.assertEqual(tags, ['critical:no_data_fill_0', 'warning:no_data_fill_0'])
         self.assertEqual(self.status_check.importance, Service.CRITICAL_STATUS)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
@@ -354,8 +370,9 @@ class TestEmptySeries(TestCase):
         # Points should not be filled in
         self.assertEqual(self.status_check.get_series()['data'], [])
         # The test should succeed
-        result = self.status_check._run()
+        result, tags = self.status_check._run()
         self.assertTrue(result.succeeded)
+        self.assertEqual(tags, [])
         self.assertEqual(result.error, u'SUCCESS: no data')
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
@@ -365,9 +382,10 @@ class TestEmptySeries(TestCase):
         # Points should not be filled in
         self.assertEqual(self.status_check.get_series()['data'], [])
         # The test should warn
-        result = self.status_check._run()
+        result, tags = self.status_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'WARNING: no data')
+        self.assertEqual(tags, ['no_data'])
         self.assertEqual(self.status_check.importance, Service.WARNING_STATUS)
 
     @patch('cabot.metricsapp.models.MetricsStatusCheckBase._get_parsed_data', mock_get_empty_series)
@@ -378,13 +396,15 @@ class TestEmptySeries(TestCase):
         self.assertEqual(self.status_check.get_series()['data'], [])
         # The test should fail and respect the high_alert_importance (ERROR here)
         self.status_check.high_alert_importance = Service.ERROR_STATUS
-        result = self.status_check._run()
+        result, tags = self.status_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'ERROR: no data')
+        self.assertEqual(tags, ['no_data'])
         self.assertEqual(self.status_check.importance, Service.ERROR_STATUS)
         # This time it should fail with CRITICAL
         self.status_check.high_alert_importance = Service.CRITICAL_STATUS
-        result = self.status_check._run()
+        result, tags = self.status_check._run()
         self.assertFalse(result.succeeded)
         self.assertEqual(result.error, u'CRITICAL: no data')
+        self.assertEqual(tags, ['no_data'])
         self.assertEqual(self.status_check.importance, Service.CRITICAL_STATUS)

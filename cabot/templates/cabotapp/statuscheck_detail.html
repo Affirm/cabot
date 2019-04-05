@@ -54,11 +54,13 @@
           <th>Time started</th>
           <th>Time complete</th>
           <th>Runtime</th>
-          <th>Message</th>
+          <th>{% if show_tags %}<a href="{% url 'check' pk=check.pk %}">{% endif %}Message{% if show_tags %}</a>{% endif %} /
+            {% if not show_tags %}<a href="{% url 'check' pk=check.pk %}?show_tags=1">{% endif %}Tags{% if not show_tags %}</a>{% endif %}
+          </th>
         </tr>
       </thead>
       <tbody>
-      {% for result in checkresults %}
+      {% for result in checkresults.prefetch_related %}
         <tr>
           <td>
             <span class="label {% if result.succeeded %}label-success{% else %}label-danger{% endif %}">{{ result.status }}
@@ -69,7 +71,9 @@
           </td>
           <td>{{ result.time_complete|format_timestamp }}</td>
           <td>{{ result.took }} ms</td>
-          <td>{% autoescape off %}{{ result.error|default:"" }}{% endautoescape %}</td>
+          <td>{% if not show_tags %}{% autoescape off %}{{ result.error|default:"" }}{% endautoescape %}
+          {% else %}{% for tag in result.tags.all %}<code>{{ tag }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>

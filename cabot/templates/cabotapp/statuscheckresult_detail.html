@@ -26,6 +26,7 @@
         <tr><th>Grafana Link</th><td><a href="{{ result.status_check.grafana_panel.modifiable_url }}">{{ result.status_check.name }}</a></td></tr>
         {% endif %}
         <tr><th>Status</th><td>{{ result.status|capfirst }}</td></tr>
+        <tr><th>Tags</th><td>{% for tag in result.tags.all %}<code>{{ tag }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>
         <tr><th>Time started</th><td>{{ result.time|format_timestamp }}</td></tr>
         <tr><th>Time complete</th><td>{{ result.time_complete|format_timestamp }}</td></tr>
         <tr><th>Runtime</th><td>{{ result.took }} ms</td></tr>
