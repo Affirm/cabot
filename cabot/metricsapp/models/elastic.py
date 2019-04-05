@@ -30,7 +30,7 @@ class ElasticsearchSource(MetricsSourceBase):
                   'Format: "localhost" or "https://user:secret@localhost:443."'
     )
     index = models.TextField(
-        max_length=50,
+        max_length=1000,
         default='*',
         help_text=escape('Elasticsearch index name. Can include wildcards ("*") or date math expressions '
                          '("<static_name{date_math_expr{date_format|time_zone}}\>"). For example, an index could be '
