@@ -356,21 +356,49 @@ class ScheduleProblems(models.Model):
 class Service(CheckGroupMixin):
 
     def update_status(self):
-        self.old_overall_status = self.overall_status
-        # Only active checks feed into our calculation
-        status_checks_failed_count = self.all_failing_checks().count()
-        self.overall_status = self.most_severe(self.all_failing_checks())
-        self.snapshot = ServiceStatusSnapshot(
-            service=self,
-            num_checks_active=self.active_status_checks().count(),
-            num_checks_passing=self.active_status_checks(
-            ).count() - status_checks_failed_count,
-            num_checks_failing=status_checks_failed_count,
-            overall_status=self.overall_status,
-            time=timezone.now(),
-        )
-        self.snapshot.save()
-        self.save()
+        # Services that have been around for a long time accumulate a huge history of snapshots.
+        # When these services are deleted, Django manually deletes these snapshots (through on_delete=models.CASCADE).
+        # This is done by enumerating all snapshots with a foreign key pointing to this service, then deleting them
+        # one by one.
+        # While this snapshot deletion is going on, update_status() may still run concurrently via celery.
+        # This causes a new ServiceStatusSnapshot to be created for the service that is being deleted.
+        # Once the cascading delete for snapshots completes, Django tries to delete our service's row in the DB,
+        # but fails with an IntegrityError:
+
+        #     IntegrityError: update or delete on table "cabotapp_service" violates foreign key constraint
+        #     "cabotapp_servicestat_service_id_a9d27aca_fk_cabotapp_" on table "cabotapp_servicestatussnapshot"
+        #     DETAIL:  Key (id)=(2194) is still referenced from table "cabotapp_servicestatussnapshot".
+
+        # because Django doesn't see the new ServiceStatusSnapshot.
+        # We have a test that demonstrates this behavior in TestWebConcurrency.test_delete_service.
+
+        # So, to work around this behavior, we do two things:
+        # 1. Lock the service while we perform a status update.
+        # 2. Lock the service while we do the cascading delete and final cleanup delete.
+
+        # note: the exists() is important because:
+        # 1. this service may be deleted between celery starting and running this task
+        # 2. select_for_update().filter() prepares a queryset, but doesn't actually hit the DB;
+        #    the lock is taken only when the queryset is evaluated. exists() is one way to evaluate the queryset.
+        with transaction.atomic():
+            if not Service.objects.select_for_update().filter(pk=self.pk).exists():
+                return
+
+            self.old_overall_status = self.overall_status
+            # Only active checks feed into our calculation
+            status_checks_failed_count = self.all_failing_checks().count()
+            self.overall_status = self.most_severe(self.all_failing_checks())
+            self.snapshot = ServiceStatusSnapshot(
+                service=self,
+                num_checks_active=self.active_status_checks().count(),
+                num_checks_passing=self.active_status_checks().count() - status_checks_failed_count,
+                num_checks_failing=status_checks_failed_count,
+                overall_status=self.overall_status,
+                time=timezone.now(),
+            )
+            self.snapshot.save()
+            self.save()
+
         if not (self.overall_status == Service.PASSING_STATUS and self.old_overall_status == Service.PASSING_STATUS):
             self.alert()
 
@@ -378,6 +406,13 @@ class Service(CheckGroupMixin):
         blank=True,
         help_text="URL of service."
     )
+
+    def delete(self, *args, **kwargs):
+        # to handle django's cascading deletes for large services; see update_status()
+        with transaction.atomic():
+            Service.objects.select_for_update().filter(pk=self.pk).exists()
+            result = super(Service, self).delete(*args, **kwargs)
+        return result
 
     class Meta:
         ordering = ['name']
