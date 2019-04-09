@@ -49,7 +49,7 @@
             {
               "query_string": {
                 "analyze_wildcard": true,
-                "query": "name:the-goat AND module:(module)"
+                "query": "name:the-goat AND module:(\"module\")"
               }
             },
             {

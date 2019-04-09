@@ -16,9 +16,14 @@
           "name": "event_name",
           "options": [
             {
+              "selected": true,
+              "text": "All",
+              "value": "$__all"
+            },
+            {
               "selected": false,
               "text": "E1",
-              "value": "e1"
+              "value": "e1-d1"
             },
             {
               "selected": true,

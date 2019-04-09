@@ -1,11 +1,14 @@
-import logging
 from collections import defaultdict
+from copy import deepcopy
+import logging
+
 from elasticsearch_dsl import Search, A
 from elasticsearch_dsl.query import Range
 from django.core.exceptions import ValidationError
 from pytimeparse import parse
+
 from cabot.metricsapp import defs
-from .grafana import template_response
+from cabot.metricsapp.api.grafana import template_response
 
 
 logger = logging.getLogger(__name__)
@@ -213,6 +216,29 @@ def _add_aggs(search_aggs, series, min_time, default_interval):
         search_aggs.pipeline(metric_name, metric_type, buckets_path=bucket, **metric_settings)
 
 
+def _escape_string(string):
+    """
+    Escape Lucene escape characters in string
+    :param string: string to escape
+    :return: escaped string
+    """
+    escape_chars = ['+', '-', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', '*', '?', ':', '&&', '||']
+
+    for char in escape_chars:
+        string = string.replace(char, '\\\\{}'.format(char))
+
+    return string
+
+
+def _escape_and_quote_string(string):
+    """
+    Escape Lucene escape characters and quote the whole string
+    :param string: string to modify
+    :return: escaped and quoted string
+    """
+    return '\\"{}\\"'.format(_escape_string(string))
+
+
 def build_query(series, min_time=defs.ES_TIME_RANGE, default_interval=defs.ES_DEFAULT_INTERVAL):
     """
     Given series information from the Grafana API, build an Elasticsearch query
@@ -242,7 +268,7 @@ def create_elasticsearch_templating_dict(dashboard_info):
     dashboard
     """
     templates = {}
-    templating_info = dashboard_info['dashboard']['templating']
+    templating_info = deepcopy(dashboard_info['dashboard']['templating'])
 
     # Not all data in the templating section are templates--filter out the ones without current values
     for template in filter(lambda template: template.get('current'), templating_info['list']):
@@ -256,7 +282,10 @@ def create_elasticsearch_templating_dict(dashboard_info):
             if all_value:
                 templates[template_name] = all_value
             else:
-                options = [option['value'] for option in template['options']]
+                options = [option['value'] for option in template['options'] if option['value'] != '$__all']
+                for i, option in enumerate(options):
+                    if isinstance(option, basestring):
+                        options[i] = _escape_and_quote_string(option)
                 # If there aren't any options, fall back to selecting everything
                 if options == []:
                     templates[template_name] = '*'
@@ -264,6 +293,9 @@ def create_elasticsearch_templating_dict(dashboard_info):
                     templates[template_name] = '({})'.format(' OR '.join(options))
 
         elif isinstance(template_value, list):
+            for i, value in enumerate(template_value):
+                if isinstance(value, basestring):
+                    template_value[i] = _escape_and_quote_string(value)
             templates[template_name] = '({})'.format(' OR '.join(template_value))
 
         # Interval can also be automatically set
@@ -271,6 +303,8 @@ def create_elasticsearch_templating_dict(dashboard_info):
             templates[template_name] = 'auto'
 
         else:
+            if isinstance(template_value, str):
+                template_value = _escape_string(template_value)
             templates[template_name] = template_value
 
     return templates
