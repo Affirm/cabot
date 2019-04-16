@@ -123,7 +123,8 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
             multisearch.params(max_concurrent_searches=source.max_concurrent_searches)
 
         for query in json.loads(self.queries):
-            multisearch = multisearch.add(Search.from_dict(query))
+            multisearch = multisearch.add(Search.from_dict(query)
+                                          .params(ignore_unavailable=True, allow_no_indices=True))
 
         try:
             responses = multisearch.using(source.client).index(source.index).execute()
