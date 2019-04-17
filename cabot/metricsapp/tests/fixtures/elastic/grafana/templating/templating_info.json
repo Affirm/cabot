@@ -189,12 +189,51 @@
         {
           "datasource": "ds",
           "filters": [
-
           ],
           "hide": 0,
           "label": "Ad-hoc Filters",
           "name": "filters",
           "type": "adhoc"
+        },
+        {
+          "allValue": "ZZZZ",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": "ds",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Resource",
+          "multi": true,
+          "name": "resource",
+          "options": [
+            {
+              "selected": false,
+              "text": "AAA",
+              "value": "AAA"
+            },
+            {
+              "selected": true,
+              "text": "BBB",
+              "value": "BBB"
+            },
+            {
+              "selected": false,
+              "text": "CCC",
+              "value": "CCC"
+            }
+          ],
+          "query": "{\"find\": \"terms\", \"field\": \"module\", \"query\": \"name:request.body.resource:*\"}",
+          "refresh": 1,
+          "regex": "",
+          "sort": 0,
+          "tagValuesQuery": "",
+          "tags": [
+          ],
+          "tagsQuery": "",
+          "type": "query",
+          "useTags": false
         }
       ]
     }
