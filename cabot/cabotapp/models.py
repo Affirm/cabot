@@ -216,11 +216,14 @@ class CheckGroupMixin(models.Model):
             # We want to alert if the status changes no matter what
             if self.overall_status == self.old_overall_status:
                 # Don't alert every time if status hasn't changed
-                if self.overall_status == self.WARNING_STATUS:
+                if self.overall_status == self.ACKED_STATUS:
+                    # don't ever retrigger alerts for sustained acked status (it's not necessary)
+                    return
+                elif self.overall_status == self.WARNING_STATUS:
                     if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.NOTIFICATION_INTERVAL)) \
                             < self.last_alert_sent:
                         return
-                elif self.overall_status in (self.CRITICAL_STATUS, self.ERROR_STATUS, self.ACKED_STATUS):
+                elif self.overall_status in (self.CRITICAL_STATUS, self.ERROR_STATUS):
                     if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.ALERT_INTERVAL)) \
                             < self.last_alert_sent:
                         return
