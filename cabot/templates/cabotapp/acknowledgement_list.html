@@ -119,7 +119,7 @@
           </thead>
           <tbody>
           {% for ack in closed_acks %}
-            <tr class="enabled">
+            <tr class="enabled check-{{ ack.status_check.id }}-row">
               <td>
                 <a href="{% url 'check' pk=ack.status_check.pk %}">{{ack.status_check.name}}</a>
               </td>
