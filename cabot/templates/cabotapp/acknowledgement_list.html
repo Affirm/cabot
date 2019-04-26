@@ -16,6 +16,13 @@
   }
   </style>
 
+  {# messages are used to show a message when checks don't finish running within the timeout #}
+  {% for message in messages %}
+    <div class="row" style="margin-top: 8px">
+      <p class="alert {{ message.tags }}">{{ message }}</p>
+    </div>
+  {% endfor %}
+
   <div class="row">
     <div class="col-xs-12">
       <div class="col-xs-1"><h2><i class="glyphicon glyphicon-flag"></i></h2></div>

@@ -1,3 +1,4 @@
+import time
 import six
 from django.template import loader
 from datetime import datetime, timedelta, date
@@ -7,6 +8,7 @@ from django.core.urlresolvers import reverse_lazy
 from django.conf import settings
 from timezone_field import TimeZoneFormField
 
+from cabot.cabotapp import tasks
 from cabot.cabotapp.alert import AlertPlugin
 from cabot.cabotapp.fields import TimeFromNowField
 from models import (StatusCheck,
@@ -24,7 +26,7 @@ from models import (StatusCheck,
                     get_all_fallback_officers,
                     update_shifts, ScheduleProblems, Acknowledgement)
 
-from tasks import run_status_check as _run_status_check
+from tasks import run_status_check as _run_status_check, update_check_and_services
 from .decorators import cabot_login_required
 from django.utils.decorators import method_decorator
 from django.views.generic import (DetailView,
@@ -43,7 +45,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from cabot.cabotapp.utils import format_datetime
-from defs import EXPIRE_AFTER_HOURS_OPTIONS, NUM_VISIBLE_CLOSED_ACKS
+from defs import EXPIRE_AFTER_HOURS_OPTIONS, NUM_VISIBLE_CLOSED_ACKS, ACK_SERVICE_NOT_YET_UPDATED_MSG, \
+    ACK_UPDATE_SERVICE_TIMEOUT_SECONDS
 from models import AlertPluginUserData
 from django.contrib import messages
 from social_core.exceptions import AuthFailed
@@ -977,6 +980,45 @@ class AckForm(GroupedModelForm):
         self.fields['close_after_successes'].required = False  # close_after_successes can be blank
 
 
+def _update_check_and_services_timeout(ack, timeout_seconds):
+    # type: (Acknowledgement, Optional[float]) -> bool
+    """
+    Runs this ack's status_check and updates the status of any associated services.
+    Since the check may take a long time to run (e.g. more than a web request), the check is run by submitting a
+    celery task and waiting up to timeout_seconds for it to complete. If it does not complete within
+    timeout_seconds, this function will return False (but the task is not aborted; it may still complete).
+
+    You should call this whenever you create or close an ack.
+    :param timeout_seconds: Timeout in seconds; if the check takes longer than this to run, will return False.
+                            If 0, will schedule the update and immediately return.
+                            If None, will block until the check completes (dangerous for UI!).
+    :return: True if the check completed within timeout_seconds, False otherwise
+    """
+    check_id = ack.status_check.id
+    start = timezone.now()
+    update_check_and_services.apply_async((check_id,))
+
+    # we don't have a result store for celery, so we just poll the DB
+    # to see if the check has re-run (and assume the service will update soon after)
+    remaining = timeout_seconds
+    interval = 0.5
+    while remaining > 0:
+        interval = min(interval, remaining)
+        time.sleep(interval)
+        remaining -= interval
+
+        check = StatusCheck.objects.get(id=check_id)
+        if check.last_run and check.last_run > start:
+            return True
+
+    return False
+
+
+def _on_ack_changed(request, ack):
+    if ack and not _update_check_and_services_timeout(ack, timeout_seconds=ACK_UPDATE_SERVICE_TIMEOUT_SECONDS):
+        messages.warning(request, ACK_SERVICE_NOT_YET_UPDATED_MSG, extra_tags="alert-warning")
+
+
 class AckUpdateView(LoginRequiredMixin, UpdateView):
     form_class = AckForm
     template_name = 'cabotapp/acknowledgement_form.html'
@@ -985,7 +1027,6 @@ class AckUpdateView(LoginRequiredMixin, UpdateView):
     def get_success_url(self):
         return '{}#check-{}'.format(reverse('acks'), self.object.status_check.id)
 
-    @transaction.atomic()
     def form_valid(self, form):
         if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
             form.instance.created_by = self.request.user
@@ -993,7 +1034,13 @@ class AckUpdateView(LoginRequiredMixin, UpdateView):
         # always create a new instance
         form.instance.pk = None
 
-        return super(AckUpdateView, self).form_valid(form)
+        # in transaction since it will probably an existing ack
+        with transaction.atomic():
+            result = super(AckUpdateView, self).form_valid(form)
+
+        _on_ack_changed(self.request, self.object)
+
+        return result
 
 
 class AckCreateView(LoginRequiredMixin, CreateView):
@@ -1024,12 +1071,13 @@ class AckCreateView(LoginRequiredMixin, CreateView):
             'close_after_successes': 1,
         }
 
-    @transaction.atomic()
     def form_valid(self, form):
         if self.request.user is not None and not isinstance(self.request.user, AnonymousUser):
             form.instance.created_by = self.request.user
 
-        return super(AckCreateView, self).form_valid(form)
+        result = super(AckCreateView, self).form_valid(form)
+        _on_ack_changed(self.request, self.object)
+        return result
 
     def get_context_data(self, **kwargs):
         context = super(AckCreateView, self).get_context_data(**kwargs)
@@ -1037,19 +1085,19 @@ class AckCreateView(LoginRequiredMixin, CreateView):
 
 
 class AckCloseView(LoginRequiredMixin, View):
-    @transaction.atomic()
     def get(self, request, pk, **kwargs):
-        ack = Acknowledgement.objects.get(pk=int(pk))
-        user = request.user.username if request.user.pk else None
+        user = request.user if request.user.pk else None
         username = user.username if user else 'anonymous user'
+        ack = Acknowledgement.objects.get(pk=int(pk))
         ack.close('closed by {} through web'.format(username))
+        _on_ack_changed(request, ack)
         return HttpResponseRedirect(reverse('acks'))
 
 
 class AckReopenView(LoginRequiredMixin, View):
-    @transaction.atomic()
     def get(self, request, pk, **kwargs):
-        ack = Acknowledgement.objects.get(pk=int(pk))
         user = request.user if request.user.pk else None  # None if anonymous user
-        ack.clone(created_by=user)
+        ack = Acknowledgement.objects.get(pk=int(pk))
+        new_ack = ack.clone(created_by=user)
+        _on_ack_changed(request, new_ack)
         return HttpResponseRedirect(reverse('acks'))

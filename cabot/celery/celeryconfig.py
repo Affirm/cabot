@@ -101,6 +101,10 @@ CELERY_ROUTES = {
         'queue': 'batch',
         'routing_key': 'batch'
     },
+    'cabot.cabotapp.tasks.update_check_and_services': {
+        'queue': 'normal_checks',
+        'routing_key': 'normal_checks'
+    },
     'cabot.metricsapp.tasks.sync_all_grafana_checks': {
         'queue': 'batch',
         'routing_key': 'batch',

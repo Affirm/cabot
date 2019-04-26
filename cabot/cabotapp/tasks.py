@@ -8,7 +8,7 @@ from celery.task import task
 from django.core.mail import EmailMessage
 from django.core.urlresolvers import reverse
 
-from cabot.cabotapp.models import Schedule, StatusCheckResultTag, StatusCheckResult, Acknowledgement
+from cabot.cabotapp.models import Schedule, StatusCheckResultTag, StatusCheckResult, Acknowledgement, StatusCheck
 from cabot.cabotapp.schedule_validation import update_schedule_problems
 from cabot.cabotapp.utils import build_absolute_url
 from cabot.celery.celery_queue_config import STATUS_CHECK_TO_QUEUE
@@ -249,3 +249,13 @@ def close_expired_acknowledgements():
     # loop over open acks where expire_at >= now
     for ack in Acknowledgement.objects.filter(closed_at__isnull=True, expire_at__lte=now):
         ack.close('expired')
+        update_check_and_services.apply_async((ack.status_check_id,))
+
+
+@task(ignore_result=True)
+def update_check_and_services(check_id):
+    # type: (int) -> None
+    check = StatusCheck.objects.get(id=check_id)
+    check.run()
+    for service in check.service_set.all():
+        service.update_status()

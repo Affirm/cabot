@@ -1,6 +1,8 @@
+# coding=utf-8
 import errno
 
-from celery.exceptions import SoftTimeLimitExceeded
+from celery.exceptions import SoftTimeLimitExceeded, TimeoutError
+from celery.utils.log import get_task_logger
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -30,7 +32,6 @@ import time
 import yaml
 
 import requests
-from celery.utils.log import get_task_logger
 
 logger = get_task_logger(__name__)
 
