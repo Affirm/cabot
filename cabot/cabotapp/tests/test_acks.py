@@ -1,10 +1,10 @@
-from django.core.urlresolvers import reverse
 from mock import patch
+from django.core.urlresolvers import reverse
 from django.utils import timezone
 
 from cabot.cabotapp import tasks
 from cabot.cabotapp.models import Acknowledgement
-from .utils import LocalTestCase, fake_http_404_response, fake_http_200_response
+from cabot.cabotapp.tests.utils import LocalTestCase, fake_http_404_response, fake_http_200_response
 
 
 class TestAcks(LocalTestCase):

@@ -8,6 +8,7 @@ from django.conf import settings
 from timezone_field import TimeZoneFormField
 
 from cabot.cabotapp.alert import AlertPlugin
+from cabot.cabotapp.fields import TimeFromNowField
 from models import (StatusCheck,
                     JenkinsStatusCheck,
                     HttpStatusCheck,
@@ -42,6 +43,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from cabot.cabotapp.utils import format_datetime
+from defs import EXPIRE_AFTER_HOURS_OPTIONS, NUM_VISIBLE_CLOSED_ACKS
 from models import AlertPluginUserData
 from django.contrib import messages
 from social_core.exceptions import AuthFailed
@@ -480,7 +482,7 @@ class StatusCheckDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super(StatusCheckDetailView, self).get_context_data(**kwargs)
         ctx['show_tags'] = self.request.GET.get('show_tags', False)
-        ctx['expire_after_hours'] = [2, 4, 8, 24]
+        ctx['expire_after_hours'] = EXPIRE_AFTER_HOURS_OPTIONS
         return ctx
 
     def render_to_response(self, context, *args, **kwargs):
@@ -937,32 +939,9 @@ class AckListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super(AckListView, self).get_context_data(**kwargs)
         threshold = timezone.now() - timezone.timedelta(days=7)
-        ctx['closed_acks'] = Acknowledgement.objects.filter(closed_at__gte=threshold).order_by('-closed_at')[:12]
+        ctx['closed_acks'] = Acknowledgement.objects.filter(closed_at__gte=threshold) \
+                                                    .order_by('-closed_at')[:NUM_VISIBLE_CLOSED_ACKS]
         return ctx
-
-
-class TimeFromNowField(forms.Select):
-    """DateTime field that lets the user choose from a predetermined set of times from now()"""
-    def __init__(self, times, message_format=None, choices=[], *args, **kwargs):
-        message_format = message_format or (lambda t: '{} hour{} from now'.format(t, 's' if t != 1 else ''))
-        choices += [(t, message_format(t)) for t in times]
-        kwargs['choices'] = choices
-        super(TimeFromNowField, self).__init__(*args, **kwargs)
-
-    def value_from_datadict(self, data, files, name):
-        value = data.get(name, '')
-        choice_values = [c[0] for c in self.choices]
-        if value in choice_values:
-            return value
-
-        try:
-            hours = int(value)
-        except ValueError:
-            return 'invalid-datetime'
-
-        if hours not in choice_values:
-            return 'invalid-datetime'
-        return timezone.now() + timezone.timedelta(hours=hours)
 
 
 class AckForm(GroupedModelForm):
@@ -982,12 +961,14 @@ class AckForm(GroupedModelForm):
                 'rows': 2,
                 'style': 'width: 70%',
             }),
-            'expire_at': TimeFromNowField(times=[1, 2, 4, 8, 12, 24],
-                                          choices=[('', 'Never (dangerous!)')],
-                                          attrs={
-                'data-rel': 'chosen',
-                'style': 'width: 70%',
-            }),
+            'expire_at': TimeFromNowField(
+                times=EXPIRE_AFTER_HOURS_OPTIONS,
+                choices=[('', 'Never (dangerous!)')],
+                attrs={
+                    'data-rel': 'chosen',
+                    'style': 'width: 70%',
+                }
+            ),
         }
 
     def __init__(self, *args, **kwargs):

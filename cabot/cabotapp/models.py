@@ -1283,7 +1283,7 @@ class Acknowledgement(ResultFilter):
             .filter(status_check=self.status_check, closed_at__isnull=True)\
             .exclude(pk=self.pk)
         for old_ack in existing:
-            old_ack.close('options changed')
+            old_ack.close('ack updated')
 
         return super(Acknowledgement, self).save(**kwargs)
 
