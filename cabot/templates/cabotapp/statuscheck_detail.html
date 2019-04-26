@@ -82,7 +82,7 @@
               <a href="{% url 'acks' %}#check-{{ check.id }}" class="label label-warning">{{ result.status }}</a>
             {% else %}
               <div class="dropdown">
-                <a href="#" class="dropdown-toggle label label-danger" data-toggle="dropdown">{{ result.status }} <span class="caret"></span></a>
+                <a href="#" class="dropdown-toggle label label-danger" data-toggle="dropdown">{{ result.status }} <span class="caret"></span> </a>
                 <ul class="dropdown-menu">
                   {% for hours in expire_after_hours %}
                   <li><a href="{% url 'create-ack' %}?result_id={{ check.id }}&expire_after_hours={{ hours }}">Snooze errors like this for {{ hours }}h</a></li>
