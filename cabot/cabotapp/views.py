@@ -8,7 +8,6 @@ from django.core.urlresolvers import reverse_lazy
 from django.conf import settings
 from timezone_field import TimeZoneFormField
 
-from cabot.cabotapp import tasks
 from cabot.cabotapp.alert import AlertPlugin
 from cabot.cabotapp.fields import TimeFromNowField
 from models import (StatusCheck,

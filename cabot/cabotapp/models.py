@@ -1,7 +1,7 @@
 # coding=utf-8
 import errno
 
-from celery.exceptions import SoftTimeLimitExceeded, TimeoutError
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 from django.conf import settings
 from django.contrib.auth.models import User
