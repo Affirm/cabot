@@ -56,13 +56,16 @@ class TestAcks(LocalTestCase):
 
         url = '{}?result_id={}'.format(reverse('create-ack'), result.id)
         data = self.client.get(url).context['form'].initial  # the data to post is what's pre-filled
-        resp = self.client.post(url, data=data)  # post it
+
+        with patch('cabot.cabotapp.models.requests.request', fake_http_404_response):
+            resp = self.client.post(url, data=data)  # post it
         self.assertEquals(resp.status_code, 302)
 
-        # run the check again
-        result = self.fail_http_check()
-        self.assertFalse(result.succeeded)  # should still be considered unsuccessful
-        self.assertTrue(result.acked)  # ...but acked
+        # check should have implicitly run
+        new_result = self.http_check.last_result()
+        self.assertNotEqual(result.id, new_result.id)
+        self.assertFalse(new_result.succeeded)  # should still be considered unsuccessful
+        self.assertTrue(new_result.acked)  # ...but acked
 
     def test_check_acked_status(self):
         # create an ack on this check
