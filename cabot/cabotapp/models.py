@@ -187,7 +187,7 @@ class CheckGroupMixin(models.Model):
 
     def most_severe(self, check_list):
         # if a check is acked, instead of importance use ACKED_STATUS
-        failures = [c.importance if not c.calculated_status == Service.CALCULATED_ACKED_STATUS
+        failures = [c.importance if c.calculated_status != Service.CALCULATED_ACKED_STATUS
                     else self.ACKED_STATUS
                     for c in check_list]
         if self.CRITICAL_STATUS in failures:
@@ -1178,7 +1178,7 @@ class ResultFilter(models.Model):
     class Meta:
         abstract = True
 
-    status_check = models.ForeignKey(StatusCheck, null=False)
+    status_check = models.ForeignKey(StatusCheck, null=False, db_index=True)
 
     MATCH_CHECK = 'C'
     MATCH_TYPE_CHOICES = (
@@ -1231,6 +1231,11 @@ class Acknowledgement(ResultFilter):
                                                         help_text='After this many consecutive successful runs the '
                                                                   'acknowledgement will be automatically closed. Enter '
                                                                   '0 to disable.')
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['created_at', 'closed_at', 'expire_at'])
+        ]
 
     @classmethod
     def get_acks_matching_check(cls, check, at_time=None):
