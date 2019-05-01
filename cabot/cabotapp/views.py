@@ -1031,11 +1031,19 @@ class AckUpdateView(LoginRequiredMixin, UpdateView):
             form.instance.created_by = self.request.user
 
         # always create a new instance
+        old_ack_id = self.object.id
         form.instance.pk = None
 
         # in transaction since it will probably an existing ack
         with transaction.atomic():
             result = super(AckUpdateView, self).form_valid(form)
+
+        # since _on_ack_changed only knows about the current status check ID, make sure we update
+        # the status check from the old ack in case it was changed (but don't bother waiting on it)
+        old_ack = Acknowledgement.objects.get(id=old_ack_id)
+        if not old_ack.closed_at:
+            old_ack.close('ack updated')
+            update_check_and_services.apply_async((old_ack.status_check_id,))
 
         _on_ack_changed(self.request, self.object)
 
