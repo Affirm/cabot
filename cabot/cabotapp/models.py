@@ -1178,7 +1178,7 @@ class ResultFilter(models.Model):
     class Meta:
         abstract = True
 
-    status_check = models.ForeignKey(StatusCheck, null=False, db_index=True)
+    status_check = models.ForeignKey(StatusCheck, null=False)
 
     MATCH_CHECK = 'C'
     MATCH_TYPE_CHOICES = (
@@ -1215,16 +1215,16 @@ class Acknowledgement(ResultFilter):
     For simplicity, only one Acknowledgement can exist per StatusCheck. This is enforced by automatically closing
     Acknowledgements that already exist for the same status check in Acknowledgement.save() (with a fixed reason).
     """
-    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    created_at = models.DateTimeField(default=timezone.now)
     created_by = models.ForeignKey(User, null=True, default=None)
     note = models.TextField(max_length=255, blank=True,
                             help_text='Leave a note explaining why this ack was created.')
 
     # if 'closed_at' is set, the ack is considered 'closed'
-    closed_at = models.DateTimeField(null=True, default=None, db_index=True)
+    closed_at = models.DateTimeField(null=True, default=None)
     closed_reason = models.TextField(max_length=255, null=True, blank=False, default=None)
 
-    expire_at = models.DateTimeField(null=True, default=None, db_index=True,
+    expire_at = models.DateTimeField(null=True, default=None,
                                      help_text='After this time the acknowledgement will be automatically closed and '
                                                'alerts will resume, even if the check is still failing.')
     close_after_successes = models.PositiveIntegerField(null=True, default=1,
@@ -1234,7 +1234,8 @@ class Acknowledgement(ResultFilter):
 
     class Meta:
         indexes = [
-            models.Index(fields=['created_at', 'closed_at', 'expire_at'])
+            models.Index(fields=['status_check_id', 'closed_at', 'expire_at', 'created_at']),
+            models.Index(fields=['-closed_at']),
         ]
 
     @classmethod
@@ -1247,7 +1248,7 @@ class Acknowledgement(ResultFilter):
         """
         at_time = at_time or timezone.now()
         acks = cls.objects.filter(status_check_id=check.id)
-        return acks.exclude(created_at__gt=at_time).exclude(closed_at__lte=at_time).exclude(expire_at__lte=at_time)
+        return acks.exclude(closed_at__lte=at_time).exclude(expire_at__lte=at_time).exclude(created_at__gt=at_time)
 
     @classmethod
     def get_acks_matching_result(cls, result, at_time=None):

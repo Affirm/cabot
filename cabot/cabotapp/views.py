@@ -936,7 +936,8 @@ class AckListView(LoginRequiredMixin, ListView):
     context_object_name = 'acks'
 
     def get_queryset(self):
-        return Acknowledgement.objects.filter(closed_at=None).order_by('status_check', '-id').prefetch_related()
+        # note: sortnig by status_check actually sorts by status check *name*, due to StatusCheck's meta.ordering
+        return Acknowledgement.objects.filter(closed_at__isnull=True).order_by('status_check', '-id').prefetch_related()
 
     def get_context_data(self, **kwargs):
         ctx = super(AckListView, self).get_context_data(**kwargs)
