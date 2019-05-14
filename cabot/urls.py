@@ -26,7 +26,13 @@ from cabot.cabotapp.views import (
     ScheduleUpdateView,
     ScheduleDeleteView,
     ScheduleSnoozeWarningsView,
-    SendTestAlertView)
+    SendTestAlertView,
+    AckListView,
+    AckCreateView,
+    AckUpdateView,
+    AckCloseView,
+    AckReopenView,
+)
 
 from cabot.cabotapp.views import (
     ServiceListView,
@@ -157,6 +163,22 @@ urlpatterns = [
     url(r'^shifts/(?P<pk>\d+)/',
         view=ShiftListView.as_view(),
         name='shifts-detail'),
+
+    url(r'^acks/$',
+        view=AckListView.as_view(),
+        name='acks'),
+    url(r'^acks/create$',
+        view=AckCreateView.as_view(),
+        name='create-ack'),
+    url(r'^acks/close/(?P<pk>\d+)$',
+        view=AckCloseView.as_view(),
+        name='close-ack'),
+    url(r'^acks/reopen/(?P<pk>\d+)$',
+        view=AckReopenView.as_view(),
+        name='reopen-ack'),
+    url(r'^acks/update/(?P<pk>\d+)$',
+        view=AckUpdateView.as_view(),
+        name='update-ack'),
 
     url(r'^user/(?P<pk>\d+)/profile/$',
         view=UserProfileUpdateView.as_view(),

@@ -1,0 +1,9 @@
+{% if not check.active %}
+  <span class="label label-warning">Disabled</span>
+{% elif check.calculated_status == 'acked' %}
+  <a href="{% url 'acks' %}#check-{{ check.id }}" class="label label-warning">Acked</a>
+{% else %}
+  <span class="label label-{% if check.calculated_status == 'passing' %}success{% else %}danger{% endif %}">
+    {{ check.calculated_status|lower|capfirst }}
+  </span>
+{% endif %}
