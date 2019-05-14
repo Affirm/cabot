@@ -234,8 +234,9 @@ def send_schedule_problems_email(schedule_id):
 
 @task(ignore_result=True)
 def clean_orphaned_tags():
+    ack_tags = Acknowledgement.tags.through.objects.values('statuscheckresulttag')
     result_tags = StatusCheckResult.tags.through.objects.values('statuscheckresulttag')
-    orphaned_tags = StatusCheckResultTag.objects.exclude(pk__in=result_tags)
+    orphaned_tags = StatusCheckResultTag.objects.exclude(pk__in=ack_tags).exclude(pk__in=result_tags)
 
     logger.info("Deleting {} orphaned tags (out of {} total tags)..."
                 .format(orphaned_tags.count(), StatusCheckResultTag.objects.count()))

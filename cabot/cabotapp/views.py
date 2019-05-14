@@ -951,11 +951,15 @@ class AckForm(GroupedModelForm):
     class Meta(GroupedModelForm.Meta):
         model = Acknowledgement
         grouped_fields = (
-            ('Filter', ('status_check', 'match_if', 'note')),
+            ('Filter', ('status_check', 'match_if', 'tags', 'note')),
             ('Duration', ('expire_at', 'close_after_successes')),
         )
         widgets = {
             'status_check': forms.Select(attrs={
+                'data-rel': 'chosen',
+                'style': 'width: 70%',
+            }),
+            'tags': forms.SelectMultiple(attrs={
                 'data-rel': 'chosen',
                 'style': 'width: 70%',
             }),
@@ -976,6 +980,7 @@ class AckForm(GroupedModelForm):
 
     def __init__(self, *args, **kwargs):
         super(AckForm, self).__init__(*args, **kwargs)
+        self.fields['tags'].required = False  # tags list can be blank
         self.fields['expire_at'].required = False  # expire_at can be blank
         self.fields['close_after_successes'].required = False  # close_after_successes can be blank
 
@@ -1074,7 +1079,8 @@ class AckCreateView(LoginRequiredMixin, CreateView):
 
         return {
             'status_check': check.pk if check else '',
-            'match_if': Acknowledgement.MATCH_CHECK,
+            'tags': result.tags.all() if result else None,
+            'match_if': Acknowledgement.MATCH_CHECK if not result else Acknowledgement.MATCH_ALL_IN,
             'expire_at': self.request.GET.get('expire_after_hours', '4'),  # default to expiring after 4 hours
             'close_after_successes': 1,
         }

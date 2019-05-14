@@ -39,6 +39,7 @@
           <thead>
             <tr>
               <th>Check</th>
+              <th>Match Tags</th>
               <th>Created by</th>
               <th>Created at</th>
               <th>Expires</th>
@@ -55,6 +56,13 @@
               <td>
                 <span class="label label-{% if check.calculated_status == 'passing' %}success{% elif check.calculated_status == 'acked' %}warning{% else %}danger{% endif %}"></span>
                 <a href="{% url 'check' pk=check.pk %}">{{ check.name }}</a>
+              </td>
+              <td>
+                {% if ack.match_if == 'C' %}
+                  <i>any</i>
+                {% else %}
+                  {{ ack.tags.all|join:", " }}
+                {% endif %}
               </td>
               <td>
                 {{ ack.created_by.username|default:'Anonymous' }}  {# TODO full name + email here #}
