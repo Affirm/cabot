@@ -1235,7 +1235,7 @@ class Acknowledgement(ResultFilter):
     class Meta:
         indexes = [
             models.Index(fields=['status_check_id', 'closed_at', 'expire_at', 'created_at']),
-            models.Index(fields=['-closed_at']),
+            models.Index(fields=['closed_at']),
         ]
 
     @classmethod
