@@ -211,7 +211,7 @@ class TestAcks(LocalTestCase):
         ack.tags.add(tags[0], tags[1])
 
         now = timezone.now()
-        result = StatusCheckResult(check=self.http_check, succeeded=False, time=now, time_complete=now)
+        result = StatusCheckResult(status_check=self.http_check, succeeded=False, time=now, time_complete=now)
         result.save()
 
         # no tags matches
