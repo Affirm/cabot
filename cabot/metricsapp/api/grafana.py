@@ -241,7 +241,8 @@ def get_status_check_fields(dashboard_info, panel_info, grafana_data_source, tem
 
     fields['grafana_panel'] = grafana_panel
     fields['user'] = user
-    fields['service_set'] = [service]
+    if service:
+        fields['service_set'] = [service]
 
     return fields
 
