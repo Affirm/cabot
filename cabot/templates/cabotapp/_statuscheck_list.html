@@ -13,7 +13,10 @@
       &nbsp;<a href="{% url "create-jenkins-check" %}?service={{ service.id }}" class="" title="Add new Jenkins check"><i class="glyphicon glyphicon-plus"></i><i class="glyphicon glyphicon-ok"></i></a>
       {% endif %}
       {% if checks_type == "All" or checks_type == "TCP" %}
-      &nbsp;<a href="{% url "create-tcp-check" %}?instance={{ instance.id }}&service={{ service.id }}" class="" title="Add new TCP check"><i class="glyphicon glyphicon-plus"></i><i class="glyphicon glyphicon-text-width"></i></a>
+      &nbsp;<a href="{% url "create-tcp-check" %}?service={{ service.id }}" class="" title="Add new TCP check"><i class="glyphicon glyphicon-plus"></i><i class="glyphicon glyphicon-text-width"></i></a>
+      {% endif %}
+      {% if checks_type == "All" or checks_type == "Elasticsearch" %}
+      &nbsp;<a href="{% url "grafana-instance-select" %}?service={{ service.id }}" class="" title="Add new Grafana check"><i class="glyphicon glyphicon-plus"></i><i class="glyphicon glyphicon-stats"></i></a>
       {% endif %}
       </h3>
     </div>
