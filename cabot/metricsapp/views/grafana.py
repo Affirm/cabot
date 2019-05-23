@@ -7,7 +7,7 @@ from cabot.metricsapp.api import get_dashboard_info, get_dashboards, get_dashboa
 from cabot.metricsapp.forms import GrafanaInstanceForm, GrafanaDashboardForm, GrafanaPanelForm, \
     GrafanaSeriesForm
 from cabot.metricsapp.models import GrafanaDataSource, ElasticsearchSource, GrafanaInstance, MetricsStatusCheckBase
-from cabot.metricsapp.views import reverse_with_service
+from cabot.metricsapp.views.urlresolvers import reverse_with_service
 
 
 class GrafanaInstanceSelectView(LoginRequiredMixin, View):
