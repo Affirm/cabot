@@ -1,4 +1,3 @@
-from django.core.urlresolvers import reverse
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.views.generic import View, TemplateView
@@ -8,6 +7,7 @@ from cabot.metricsapp.api import get_dashboard_info, get_dashboards, get_dashboa
 from cabot.metricsapp.forms import GrafanaInstanceForm, GrafanaDashboardForm, GrafanaPanelForm, \
     GrafanaSeriesForm
 from cabot.metricsapp.models import GrafanaDataSource, ElasticsearchSource, GrafanaInstance, MetricsStatusCheckBase
+from cabot.metricsapp.views import reverse_with_service
 
 
 class GrafanaInstanceSelectView(LoginRequiredMixin, View):
@@ -28,8 +28,9 @@ class GrafanaInstanceSelectView(LoginRequiredMixin, View):
             instance = instances[0]
             request.session['instance_id'] = instance.id
             request.session['all_dashboards'] = get_dashboards(instance)
+            kwargs.update(request.GET)
 
-            return HttpResponseRedirect(reverse('grafana-dashboard-select', kwargs=kwargs))
+            return HttpResponseRedirect(reverse_with_service('grafana-dashboard-select', request, kwargs))
 
         form = self.form_class(default_grafana_instance=default_instance)
         return render(request, self.template_name, {'form': form})
@@ -41,8 +42,9 @@ class GrafanaInstanceSelectView(LoginRequiredMixin, View):
             instance = form.cleaned_data['grafana_instance']
             request.session['instance_id'] = instance.id
             request.session['all_dashboards'] = get_dashboards(instance)
+            kwargs.update(request.GET)
 
-            return HttpResponseRedirect(reverse('grafana-dashboard-select', kwargs=kwargs))
+            return HttpResponseRedirect(reverse_with_service('grafana-dashboard-select', request, kwargs))
 
         return render(request, self.template_name, {'form': form})
 
@@ -76,7 +78,7 @@ class GrafanaDashboardSelectView(LoginRequiredMixin, View):
             request.session['dashboard_uri'] = dashboard_uri
             request.session['templating_dict'] = create_generic_templating_dict(dashboard_info)
 
-            return HttpResponseRedirect(reverse('grafana-panel-select', kwargs=kwargs))
+            return HttpResponseRedirect(reverse_with_service('grafana-panel-select', request, kwargs))
 
         return render(request, self.template_name, {'form': form})
 
@@ -110,7 +112,7 @@ class GrafanaPanelSelectView(LoginRequiredMixin, View):
             request.session['datasource'] = panel_dict['datasource']
             request.session['panel_info'] = panel_dict['panel_info']
 
-            return HttpResponseRedirect(reverse('grafana-series-select', kwargs=kwargs))
+            return HttpResponseRedirect(reverse_with_service('grafana-series-select', request, kwargs))
 
         return render(request, self.template_name, {'form': form})
 
@@ -136,7 +138,7 @@ class GrafanaSeriesSelectView(LoginRequiredMixin, View):
                 datasource = request.session['datasource']
                 url = self.get_url_for_check_type(instance_id, datasource)
 
-            return HttpResponseRedirect(reverse(url, kwargs=kwargs))
+            return HttpResponseRedirect(reverse_with_service(url, request, kwargs))
 
         default_series = None
         if pk is not None and MetricsStatusCheckBase.objects.filter(id=pk).exists():
@@ -170,7 +172,7 @@ class GrafanaSeriesSelectView(LoginRequiredMixin, View):
                 check = MetricsStatusCheckBase.objects.get(id=pk)
                 url = check.refresh_url
 
-            return HttpResponseRedirect(reverse(url, kwargs=kwargs))
+            return HttpResponseRedirect(reverse_with_service(url, request, kwargs))
 
         panel_url = get_panel_url(GrafanaInstance.objects.get(id=request.session['instance_id']).url,
                                   request.session['dashboard_uri'],

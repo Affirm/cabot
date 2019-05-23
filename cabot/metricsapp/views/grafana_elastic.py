@@ -3,6 +3,7 @@ import json
 from django.core.urlresolvers import reverse
 from django.shortcuts import render
 from django.views.generic import UpdateView, CreateView
+from cabot.cabotapp.models import Service
 from cabot.cabotapp.views import LoginRequiredMixin
 from cabot.metricsapp.api import get_es_status_check_fields, get_status_check_fields
 from cabot.metricsapp.forms import GrafanaElasticsearchStatusCheckForm, GrafanaElasticsearchStatusCheckUpdateForm
@@ -29,10 +30,17 @@ class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, CreateView):
             grafana_source_name=request.session['datasource'],
             grafana_instance_id=instance_id
         )
+        service_id = request.GET.get('service')
+        service = None
+        if service_id:
+            try:
+                service = Service.object.get(id=service_id)
+            except Service.DoesNotExist:
+                pass
 
         kwargs.update({
             'fields': get_status_check_fields(dashboard_info, panel_info, grafana_data_source,
-                                              templating_dict, grafana_panel, request.user),
+                                              templating_dict, grafana_panel, request.user, service),
             'es_fields': get_es_status_check_fields(dashboard_info, panel_info, series),
         })
         return kwargs

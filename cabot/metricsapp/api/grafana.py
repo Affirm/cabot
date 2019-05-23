@@ -205,7 +205,7 @@ def get_status_check_name(dashboard_info, panel_info, templating_dict):
 
 
 def get_status_check_fields(dashboard_info, panel_info, grafana_data_source, templating_dict,
-                            grafana_panel, user=None):
+                            grafana_panel, user=None, service=None):
     """
     Given dashboard, panel, instance, and datasource info, find the fields for a generic status check
     :param dashboard_info: Grafana API dashboard info
@@ -214,6 +214,7 @@ def get_status_check_fields(dashboard_info, panel_info, grafana_data_source, tem
     :param templating_dict: dictionary of {template_name, template_value}
     :param grafana_panel: GrafanaPanel object id
     :param user: user who created the check
+    :param service: initial service the check should be linked with
     :return: dictionary containing StatusCheck field names and values
     """
     fields = {}
@@ -240,6 +241,7 @@ def get_status_check_fields(dashboard_info, panel_info, grafana_data_source, tem
 
     fields['grafana_panel'] = grafana_panel
     fields['user'] = user
+    fields['service_set'] = [service]
 
     return fields
 
