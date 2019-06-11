@@ -101,12 +101,19 @@ def update_all_services():
 def update_shifts_and_problems():
     schedules = models.Schedule.objects.all()
     for schedule in schedules:
-        models.update_shifts(schedule)
-        update_schedule_problems(schedule)  # must happen after update_shifts()
+        update_shift_and_problems.apply_async((schedule.id,))
 
-        # if there are any problems, queue an email to go out
-        if schedule.has_problems() and not schedule.problems.is_silenced():
-            send_schedule_problems_email.apply_async((schedule.pk,))
+
+@task(ignore_result=True)
+def update_shift_and_problems(schedule_id):
+    schedule = models.Schedule.objects.get(id=schedule_id)
+
+    models.update_shifts(schedule)
+    update_schedule_problems(schedule)  # must happen after update_shifts()
+
+    # if there are any problems, queue an email to go out
+    if schedule.has_problems() and not schedule.problems.is_silenced():
+        send_schedule_problems_email.apply_async((schedule.pk,))
 
 
 @task(ignore_result=True)
