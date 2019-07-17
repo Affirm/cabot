@@ -165,7 +165,7 @@ class TestGrafanaApiRequests(TestCase):
     @patch('cabot.metricsapp.models.grafana.requests.Session.get')
     def test_get_request(self, fake_get):
         self.grafana_instance.get_request('index.html')
-        fake_get.assert_called_once_with('http://test.url/index.html')
+        fake_get.assert_called_once_with('http://test.url/index.html', timeout=defs.GRAFANA_REQUEST_TIMEOUT_S)
 
 
 class TestPanelUrl(TestCase):
@@ -521,5 +521,6 @@ class TestGrafanaPanel(TestCase):
         mock_requests.assert_called_once_with(
             'http://graf.graf/render/dashboard-solo/db/42?panelId=1&var-variable=x'
             '&var-group_by=1y&width={}&height={}'.format(defs.GRAFANA_RENDERED_IMAGE_WIDTH,
-                                                         defs.GRAFANA_RENDERED_IMAGE_HEIGHT))
+                                                         defs.GRAFANA_RENDERED_IMAGE_HEIGHT),
+            timeout=defs.GRAFANA_REQUEST_TIMEOUT_S)
         self.assertIsNone(image)

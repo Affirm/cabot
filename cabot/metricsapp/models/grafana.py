@@ -60,7 +60,7 @@ class GrafanaInstance(models.Model):
 
     def get_request(self, uri=''):
         """Make a request to the Grafana instance"""
-        return self.session.get(urlparse.urljoin(self.url, uri))
+        return self.session.get(urlparse.urljoin(self.url, uri), timeout=defs.GRAFANA_REQUEST_TIMEOUT_S)
 
 
 class GrafanaDataSource(models.Model):
