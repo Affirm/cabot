@@ -145,7 +145,7 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
                 parsed_data['data'].extend(data)
 
         except Exception as e:
-            logger.exception('Error executing Elasticsearch query: {}'.format(query))
+            logger.exception('Error executing Elasticsearch queries: {}'.format(self.queries))
             parsed_data['error_code'] = type(e).__name__
             parsed_data['error_message'] = six.text_type(e)
             parsed_data['error'] = True
