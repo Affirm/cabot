@@ -108,8 +108,15 @@ def update_shifts_and_problems():
 def update_shift_and_problems(schedule_id):
     schedule = models.Schedule.objects.get(id=schedule_id)
 
-    models.update_shifts(schedule)
-    update_schedule_problems(schedule)  # must happen after update_shifts()
+    try:
+        models.update_shifts(schedule)
+    except Exception:
+        logger.exception('Error when updating shifts for schedule %s.', schedule.name)
+
+    try:
+        update_schedule_problems(schedule)  # must happen after update_shifts()
+    except Exception:
+        logger.exception('Error when updating schedule problems for schedule %s.', schedule.name)
 
     # if there are any problems, queue an email to go out
     if schedule.has_problems() and not schedule.problems.is_silenced():
