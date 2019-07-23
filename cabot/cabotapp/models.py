@@ -742,9 +742,7 @@ class ActivityCounter(models.Model):
 
 class HttpStatusCheck(StatusCheck):
 
-    @property
-    def check_category(self):
-        return "HTTP check"
+    check_category = "HTTP check"
 
     @property
     def description(self):
@@ -906,9 +904,7 @@ class HttpStatusCheck(StatusCheck):
 
 class JenkinsStatusCheck(StatusCheck):
 
-    @property
-    def check_category(self):
-        return "Jenkins check"
+    check_category = "Jenkins check"
 
     @property
     def description(self):
@@ -1007,9 +1003,7 @@ class JenkinsStatusCheck(StatusCheck):
 
 class TCPStatusCheck(StatusCheck):
 
-    @property
-    def check_category(self):
-        return "TCP check"
+    check_category = "TCP check"
 
     @property
     def description(self):
