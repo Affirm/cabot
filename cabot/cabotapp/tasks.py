@@ -72,7 +72,7 @@ def run_all_checks():
     for check in checks:
         if check.should_run():
             check_queue = _classify_status_check(check.pk)
-            run_status_check.apply_async((check.pk,), queue=check_queue)
+            run_status_check.apply_async((check.pk,), queue=check_queue, routing_key=check_queue)
 
 
 @task(ignore_result=True)

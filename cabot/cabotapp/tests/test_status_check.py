@@ -261,10 +261,10 @@ class TestStatusCheck(LocalTestCase):
     def test_run_all(self, mock_run_status_check):
         tasks.run_all_checks()
         mock_run_status_check.assert_has_calls([
-            call.apply_async((10102,), queue='critical_checks'),
-            call.apply_async((10101,), queue='normal_checks'),
-            call.apply_async((10104,), queue='normal_checks'),
-            call.apply_async((10103,), queue='normal_checks'),
+            call.apply_async((10102,), queue='critical_checks', routing_key='critical_checks'),
+            call.apply_async((10101,), queue='normal_checks', routing_key='normal_checks'),
+            call.apply_async((10104,), queue='normal_checks', routing_key='normal_checks'),
+            call.apply_async((10103,), queue='normal_checks', routing_key='normal_checks'),
         ])
 
     def test_check_should_run_if_never_run_before(self):
