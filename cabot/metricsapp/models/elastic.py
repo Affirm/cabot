@@ -70,6 +70,8 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
     class Meta:
         app_label = 'metricsapp'
 
+    check_category = "Elasticsearch check"
+
     @property
     def description(self):
         desc = []
@@ -78,10 +80,6 @@ class ElasticsearchStatusCheck(MetricsStatusCheckBase):
         if self.high_alert_value is not None:
             desc.append('{}: {} {}'.format(self.high_alert_importance.title(), self.check_type, self.high_alert_value))
         return '; '.join(desc)
-
-    @property
-    def check_category(self):
-        return "Elasticsearch check"
 
     metrics_update_url = 'grafana-es-update'
     refresh_url = 'grafana-es-refresh'
