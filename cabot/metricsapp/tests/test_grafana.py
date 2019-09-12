@@ -119,7 +119,7 @@ class TestGrafanaApiParsing(TestCase):
                                        settings={},
                                        type='sum')],
                          query='query:life-the-universe-and-everything')),
-             (u'A', dict(alias='al',
+             (u'2', dict(alias='al',
                          bucketAggs=[dict(field='@timestamp',
                                           id='3',
                                           settings=dict(interval='1m', min_doc_count=0, trimEdges=0),
