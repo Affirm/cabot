@@ -24,6 +24,7 @@ class TestGrafanaApiParsing(TestCase):
     def setUp(self):
         self.dashboard_list = get_json_file('dashboard_list_response.json')
         self.dashboard_info = get_json_file('dashboard_detail_response.json')
+        self.dashboard_info_no_refid = get_json_file('dashboard_detail_response_no_refid.json')
         self.templating_dict = create_generic_templating_dict(self.dashboard_info)
 
     def test_get_dashboard_choices(self):
@@ -95,6 +96,41 @@ class TestGrafanaApiParsing(TestCase):
                                        settings=dict(percents=['75']),
                                        type='percentiles')],
                          query='name:the-goat AND module:module'))]
+        ]
+
+        self.assertEqual(series_choices, expected_series_choices)
+
+    def test_get_series_choices_missing_data(self):
+        series_choices = []
+        for row in self.dashboard_info_no_refid['dashboard']['rows']:
+            for panel in row['panels']:
+                series = get_series_choices(panel, self.templating_dict)
+                series_choices.append([(s[0], json.loads(s[1])) for s in series])
+
+        expected_series_choices = [
+            [(u'1', dict(alias='42',
+                         bucketAggs=[dict(field='@timestamp',
+                                          id='2',
+                                          settings=dict(interval='1m', min_doc_count=0, trimEdges=0),
+                                          type='date_histogram')],
+                         metrics=[dict(field='value',
+                                       id='1',
+                                       meta={},
+                                       settings={},
+                                       type='sum')],
+                         query='query:life-the-universe-and-everything')),
+             (u'A', dict(alias='al',
+                         bucketAggs=[dict(field='@timestamp',
+                                          id='3',
+                                          settings=dict(interval='1m', min_doc_count=0, trimEdges=0),
+                                          type='date_histogram')],
+                         metrics=[dict(field='count',
+                                       id='1',
+                                       meta={},
+                                       settings={},
+                                       type='sum')],
+                         query='query:who-cares'))
+             ]
         ]
 
         self.assertEqual(series_choices, expected_series_choices)
