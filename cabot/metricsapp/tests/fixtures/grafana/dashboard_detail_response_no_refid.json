@@ -125,7 +125,6 @@
                   }
                 ],
                 "query": "query:who-cares",
-                "refId": "A",
                 "timeField": "@timestamp"
               }
             ],
