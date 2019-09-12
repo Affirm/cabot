@@ -122,10 +122,19 @@ def get_series_choices(panel_info, templating_dict):
     """
     templated_panel = template_response(panel_info, templating_dict)
     out = []
+    # Sometimes the Grafana API doesn't return the refId field for some reason. In that case
+    # add a id based on an incrementing counter (since the refId in Grafana is letters, numbers
+    # can't collide).
+    id_counter = 1
     # Will display all fields in a json blob (not pretty but it works)
     for series in filter(lambda s: s.get('hide') is not True, templated_panel['targets']):
         # ref_id, datasource type, and timefield aren't useful info to display
-        ref_id = series.pop('refId')
+        if series.get('refId'):
+            ref_id = series.pop('refId')
+        else:
+            ref_id = str(id_counter)
+            id_counter += 1
+
         series.pop('dsType')
         series.pop('timeField')
         out.append((ref_id, json.dumps(series)))
