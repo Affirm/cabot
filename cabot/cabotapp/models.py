@@ -1084,6 +1084,9 @@ class StatusCheckResult(models.Model):
     def __unicode__(self):
         return '%s: %s @%s' % (self.status, self.status_check.name, self.time)
 
+    def print_tags(self):
+        return '\n'.join([tag[0] for tag in self.tags.values_list('value')])
+
     @property
     def status(self):
         if self.succeeded:
