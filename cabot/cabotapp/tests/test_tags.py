@@ -44,3 +44,21 @@ class TestTags(LocalTestCase):
 
         tags = StatusCheckResultTag.objects.order_by('value')
         self.assertEqual(len(tags), 0)
+
+    def test_print_tags(self):
+        StatusCheckResult.objects.all().delete()
+        StatusCheckResultTag.objects.all().delete()
+
+        now = timezone.now()
+        result = StatusCheckResult(status_check=self.http_check, time=now, time_complete=now, succeeded=False)
+        result.save()
+
+        tags = [StatusCheckResultTag(value='tag{:03}'.format(i)) for i in range(10)]
+        StatusCheckResultTag.objects.bulk_create(tags)
+
+        tags_list = StatusCheckResultTag.objects.all()
+        for i in range(len(tags)):
+            result.tags.add(tags_list[i])
+
+        self.assertEqual(result.print_tags(), 'tag000\ntag001\ntag002\ntag003\ntag004\ntag005\ntag006\ntag007\ntag008'
+                                              '\ntag009')
