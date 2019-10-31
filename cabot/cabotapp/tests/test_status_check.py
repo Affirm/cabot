@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, time
+
+from dateutil import rrule
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from cabot.cabotapp import tasks
 from mock import patch, call
 from cabot.cabotapp.models import HttpStatusCheck, Service, clone_model, ActivityCounter
+from cabot.cabotapp.run_window import CheckRunWindow
 from cabot.cabotapp.tasks import update_service, update_all_services
 from .utils import (
     LocalTestCase,
@@ -383,3 +386,157 @@ class TestActivityCounter(TestCase):
         self.assertEqual(self.counter.last_disabled, now)
         self.assertEqual(mock_now.call_count, 1)
         self.assertEqual(mock_save.call_count, 1)
+
+
+class TestRunWindow(LocalTestCase):
+    FULL_WEEK = (rrule.MO, rrule.TU, rrule.WE, rrule.TH, rrule.FR, rrule.SA, rrule.SU)
+    WEEKDAYS = (rrule.MO, rrule.TU, rrule.WE, rrule.TH, rrule.FR)  # no weekends
+
+    def test_empty_run_window(self):
+        self.http_check.run_window = CheckRunWindow([])
+        self.assertTrue(self.http_check.should_run())
+
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_run_window(self, mock_now):
+        start = time(12, 0, 0)
+        end = time(13, 30, 0)
+
+        recurrence = rrule.rrule(rrule.WEEKLY, interval=1, byweekday=self.FULL_WEEK)
+        self.http_check.run_window = CheckRunWindow([CheckRunWindow.Window(start_time=start, end_time=end,
+                                                                           recurrence=recurrence)])
+
+        active = [
+            datetime(2019, 10, 20, 12, 0, 0),
+            datetime(2019, 10, 20, 12, 5, 0),
+            datetime(2019, 10, 20, 13, 25, 0),
+            datetime(2019, 10, 20, 13, 30, 0),
+
+            # also test tomorrow
+            datetime(2019, 10, 21, 12, 0, 0),
+            datetime(2019, 10, 21, 13, 0, 0),
+            datetime(2019, 10, 21, 13, 30, 0),
+            datetime(2040, 10, 21, 12, 0, 0),  # extremely tomorrow
+        ]
+        inactive = [
+            datetime(2019, 10, 20, 11, 59, 59),
+            datetime(2019, 10, 20, 13, 30, 1),
+            datetime(2019, 10, 20, 0, 0, 0),
+            datetime(2019, 10, 20, 23, 59, 59),
+
+            # also test tomorrow
+            datetime(2019, 10, 21, 11, 59, 59),
+            datetime(2019, 10, 21, 13, 30, 1),
+
+            # might as well be thorough
+            datetime(2020, 10, 21, 13, 30, 1),
+            datetime(2040, 1, 1, 3, 3, 7),
+        ]
+
+        for t in active:
+            mock_now.return_value = t.replace(tzinfo=timezone.utc)
+            self.assertTrue(self.http_check.should_run())
+        for t in inactive:
+            mock_now.return_value = t.replace(tzinfo=timezone.utc)
+            self.assertFalse(self.http_check.should_run())
+
+    @patch('cabot.cabotapp.models.requests.request', fake_http_404_response)
+    @patch('cabot.cabotapp.models.timezone.now')
+    @patch('cabot.cabotapp.models.send_alert')
+    def test_alerts_outside_run_window(self, mock_send_alert, mock_now):
+        start = time(12, 0, 0)
+        end = time(13, 30, 0)
+        recurrence = rrule.rrule(rrule.WEEKLY, interval=1, byweekday=self.FULL_WEEK)
+        self.http_check.run_window = CheckRunWindow([CheckRunWindow.Window(start_time=start, end_time=end,
+                                                                           recurrence=recurrence)])
+
+        inside_window = datetime(2019, 10, 25, 13, 0, 0, 0, tzinfo=timezone.utc)
+        outside_window = datetime(2019, 10, 25, 14, 0, 0, 0, tzinfo=timezone.utc)
+        mock_now.return_value = inside_window
+        self.http_check.run()
+        self.assertEquals(self.http_check.calculated_status, Service.CALCULATED_FAILING_STATUS)
+        self.service.update_status()
+        self.assertEquals(self.service.overall_status, Service.CRITICAL_STATUS)
+        self.assertTrue(mock_send_alert.called)
+
+        mock_now.return_value = mock_now.return_value + timedelta(minutes=15)
+        mock_send_alert.reset_mock()
+        self.service.update_status()
+        self.assertTrue(mock_send_alert.called)
+
+        mock_now.return_value = outside_window
+        mock_send_alert.reset_mock()
+        self.service.update_status()
+        self.assertTrue(mock_send_alert.called)  # should alert only once outside window
+
+        mock_now.return_value = mock_now.return_value + timedelta(minutes=15)
+        mock_send_alert.reset_mock()
+        self.service.update_status()
+        self.assertFalse(mock_send_alert.called)
+
+        # back into the window, should alert again
+        mock_now.return_value = mock_now.return_value + timedelta(hours=23)
+        mock_send_alert.reset_mock()
+        self.service.update_status()
+        self.assertTrue(mock_send_alert.called)
+
+        mock_now.return_value = mock_now.return_value + timedelta(minutes=11)
+        mock_send_alert.reset_mock()
+        self.service.update_status()
+        self.assertTrue(mock_send_alert.called)
+
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_weekday_recurrence(self, mock_now):
+        start = time(12, 0, 0)
+        end = time(13, 30, 0)
+        recurrence = rrule.rrule(rrule.WEEKLY, interval=1, byweekday=self.WEEKDAYS)
+        self.http_check.run_window = CheckRunWindow([CheckRunWindow.Window(start_time=start, end_time=end,
+                                                                           recurrence=recurrence)])
+
+        friday = datetime(2019, 10, 25, 13, 0, 0, 0, tzinfo=timezone.utc)  # a friday
+        thursday = friday - timedelta(days=1)
+        saturday = friday + timedelta(days=1)
+        sunday = friday + timedelta(days=2)
+        monday = friday + timedelta(days=3)
+        next_sunday = sunday + timedelta(days=7)
+        next_monday = monday + timedelta(days=7)
+
+        tests = ((thursday, True), (friday, True), (saturday, False), (sunday, False),
+                 (monday, True), (next_sunday, False), (next_monday, True))
+        for day, should_run in tests:
+            mock_now.return_value = day
+            self.assertEquals(should_run, self.http_check.should_run())
+
+    @patch('cabot.cabotapp.models.timezone.now')
+    def test_run_window_overnight(self, mock_now):
+        """Test that run windows that go over the day boundary (start > end) work"""
+        start = time(15, 0, 0)  # 8am PST
+        end = time(0, 0, 0)  # 5pm PST
+
+        recurrence = rrule.rrule(rrule.WEEKLY, interval=1, byweekday=self.WEEKDAYS)  # no weekends
+        self.http_check.run_window = CheckRunWindow([CheckRunWindow.Window(start_time=start, end_time=end,
+                                                                           recurrence=recurrence)])
+
+        # 10/30/19 is a wednesday
+        active = [
+            datetime(2019, 10, 30, 15, 0, 0),
+            datetime(2019, 10, 31, 0, 0, 0),
+            datetime(2019, 10, 31, 16, 0, 0),
+            datetime(2019, 11, 1, 0, 0, 0),
+            datetime(2019, 11, 1, 23, 0, 0),  # friday night - an inconvenient truth
+            datetime(2019, 11, 4, 15, 0, 0),  # monday
+            datetime(2019, 11, 5, 0, 0, 0),
+        ]
+        inactive = [
+            datetime(2019, 11, 2, 15, 0, 0),
+            datetime(2019, 11, 2, 23, 0, 0),
+            datetime(2019, 11, 3, 0, 0, 0),
+            datetime(2019, 11, 3, 15, 0, 0),
+            datetime(2111, 11, 11, 11, 11, 11),
+        ]
+
+        for t in active:
+            mock_now.return_value = t.replace(tzinfo=timezone.utc)
+            self.assertTrue(self.http_check.should_run())
+        for t in inactive:
+            mock_now.return_value = t.replace(tzinfo=timezone.utc)
+            self.assertFalse(self.http_check.should_run())

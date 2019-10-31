@@ -30,6 +30,7 @@ _GROUPS = (
         'auto_sync',
         'use_activity_counter',
         'run_delay',
+        'run_window',
         'runbook',
     )),
 )

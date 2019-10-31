@@ -1977,7 +1977,7 @@ fieldset[disabled] .btn-default:active,
 .btn-default.disabled.active,
 .btn-default[disabled].active,
 fieldset[disabled] .btn-default.active {
-  background-color: #ffffff;
+  /* background-color: #ffffff; (disabled so we can tell what checkbox buttons are down on preview page) */
   border-color: #cccccc;
 }
 .btn-default .badge {

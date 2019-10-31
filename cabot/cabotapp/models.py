@@ -19,7 +19,7 @@ from cabot.cabotapp.models_plugins import (  # noqa (unused, imported for side e
     MatterMostInstance,
 )
 from cabot.cabotapp import defs
-from cabot.cabotapp.fields import PositiveIntegerMaxField
+from cabot.cabotapp.fields import PositiveIntegerMaxField, CheckRunWindowField
 
 from collections import defaultdict
 from datetime import timedelta
@@ -228,7 +228,20 @@ class CheckGroupMixin(models.Model):
                     if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.ALERT_INTERVAL)) \
                             < self.last_alert_sent:
                         return
-            self.last_alert_sent = timezone.now()
+
+            # if all failing checks are outside their run window, don't alert
+            # allow *one* alert outside of the run window (using last_alert_sent), then stop
+            # wrapped in a try/except because this is a new test and the cost of failure here is alerting breaks
+            try:
+                windows = (self.status_checks
+                           .filter(calculated_status=Service.CALCULATED_FAILING_STATUS)
+                           .values_list('run_window', flat=True))  # type: List[CheckRunWindow]
+                now = timezone.now()
+                if len(windows) > 0 and all(not w.active(now) and not w.active(self.last_alert_sent) for w in windows):
+                    return
+            except:  # intentionally broad
+                logger.exception("Error in runwindow check")
+            self.last_alert_sent = now
         else:
             # We don't count "back to normal" as an alert
             self.last_alert_sent = None
@@ -512,6 +525,7 @@ class StatusCheck(PolymorphicModel):
         blank=True,
         help_text='Notes for on-calls to correctly diagnose and resolve the alert. Supports HTML!',
     )
+    run_window = CheckRunWindowField()
 
     class Meta(PolymorphicModel.Meta):
         ordering = ['name']
@@ -579,6 +593,10 @@ class StatusCheck(PolymorphicModel):
                 return False
 
             # The last thing to verify is that the check hasn't run within the frequency
+
+        # If we don't fall within the run window, don't run (unrelated to activity counters!)
+        if not self.run_window.active(timezone.now()):
+            return False
 
         # Run if we haven't run at all
         if not self.last_run:

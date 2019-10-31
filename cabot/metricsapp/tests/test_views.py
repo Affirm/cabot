@@ -43,6 +43,7 @@ class TestMetricsReviewChanges(TestCase):
             'on_empty_series': 'fill_zero',
             'use_activity_counter': False,
             'run_delay': 0,
+            'run_window': '',
             'runbook': '',
         }
 

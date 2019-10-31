@@ -1,0 +1,19 @@
+<div style="width: 70%">
+  <input type="hidden" name="{{ widget.name }}" class="runwindow-form" value="{{ widget.value }}">
+  <label class="checkbox-inline">
+    <input type="checkbox" name="{{ widget.name }}-use-schedule">Only run between these times on these days
+  </label>
+  <div class="input-group">
+    <span class="input-group-addon" id="basic-addon1">Start time (UTC)</span>
+    <input name="{{ widget.name }}-start" type="time" class="form-control" aria-describedby="basic-addon1">
+    <span class="input-group-addon" id="basic-addon1">End time (UTC)</span>
+    <input name="{{ widget.name }}-end" type="time" class="form-control" aria-describedby="basic-addon1">
+  </div>
+  <div class="btn-group" data-toggle="buttons" style="margin-top: 4px">
+    {% for day in widget.days_of_week %}
+    <label class="btn btn-default">
+      <input name="{{ widget.name }}-day-{{ day }}" type="checkbox" autocomplete="off">{{ day }}
+    </label>
+    {% endfor %}
+  </div>
+</div>
