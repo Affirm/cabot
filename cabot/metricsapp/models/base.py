@@ -1,5 +1,5 @@
 from django.urls import reverse
-from django.db import models
+from django.db import models, transaction
 from django.core.validators import MinValueValidator
 from cabot.cabotapp.models import Service, StatusCheck
 from cabot.cabotapp.utils import build_absolute_url
@@ -165,6 +165,7 @@ class MetricsStatusCheckBase(StatusCheck):
             return self.grafana_panel.modifiable_url
         return None
 
+    @transaction.atomic
     def duplicate(self, inst_set=(), serv_set=()):
         new_check = self
         new_check.pk = None
@@ -173,6 +174,12 @@ class MetricsStatusCheckBase(StatusCheck):
         new_check.metricsstatuscheckbase_ptr_id = None
         new_check.name = 'Copy of {}'.format(self.name)
         new_check.last_run = None
+        if self.grafana_panel:
+            new_panel = self.grafana_panel
+            new_panel.pk = None
+            new_panel.id = None
+            new_panel.save()
+            new_check.grafana_panel = new_panel
         new_check.save()
         for linked in list(inst_set) + list(serv_set):
             linked.status_checks.add(new_check)

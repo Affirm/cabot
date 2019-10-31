@@ -1,7 +1,9 @@
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from cabot.metricsapp.api import build_query, template_response, validate_query, \
     create_elasticsearch_templating_dict, get_es_status_check_fields, adjust_time_range
+from cabot.metricsapp.models import ElasticsearchSource, ElasticsearchStatusCheck, GrafanaInstance, GrafanaPanel
 from .test_elasticsearch import get_json_file
 
 
@@ -151,3 +153,49 @@ class TestGrafanaTemplating(TestCase):
         expected_query = get_json_file('grafana/templating/auto_time_panel_query.json')
         self.assertEqual(expected_query, created_query)
         validate_query(created_query)
+
+
+class TestElasticsearchCheckGrafanaPanel(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('user')
+        self.es_source = ElasticsearchSource.objects.create(
+            name='es',
+            urls='localhost',
+            index='test-index-pls-ignore'
+        )
+        self.grafana_instance = GrafanaInstance.objects.create(
+            name='graf',
+            url='graf',
+            api_key='graf'
+        )
+        self.panel = GrafanaPanel.objects.create(
+            grafana_instance=self.grafana_instance,
+            panel_id=1,
+            dashboard_uri='db/42',
+            series_ids='B',
+            selected_series='B'
+        )
+        self.es_check = ElasticsearchStatusCheck.objects.create(
+            name='checkycheck',
+            created_by=self.user,
+            source=self.es_source,
+            check_type='>=',
+            warning_value=3.5,
+            high_alert_importance='CRITICAL',
+            high_alert_value=3.0,
+            queries='[{"query": {"bool": {"must": [{"query_string": {"analyze_wildcard": true, '
+                    '"query": "test.query"}}, {"range": {"@timestamp": {"gte": "now-300m"}}}]}}, '
+                    '"aggs": {"agg": {"terms": {"field": "outstanding"}, '
+                    '"aggs": {"agg": {"date_histogram": {"field": "@timestamp", "interval": "1m", '
+                    '"extended_bounds": {"max": "now", "min": "now-3h"}}, '
+                    '"aggs": {"sum": {"sum": {"field": "count"}}}}}}}}]',
+            grafana_panel=self.panel,
+            time_range=10000
+        )
+
+    def test_duplicate(self):
+        self.es_check.duplicate()
+        old_check = ElasticsearchStatusCheck.objects.get(name='checkycheck')
+        new_check = ElasticsearchStatusCheck.objects.get(name='Copy of checkycheck')
+        self.assertNotEqual(old_check.pk, new_check.pk)
+        self.assertNotEqual(old_check.grafana_panel.pk, new_check.grafana_panel.pk)
