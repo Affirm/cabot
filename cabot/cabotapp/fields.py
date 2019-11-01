@@ -48,7 +48,7 @@ class CheckRunWindowForm(forms.Field):
 
     def to_python(self, value):
         # type: (unicode) -> CheckRunWindow
-        if value:
+        if value and (isinstance(value, str) or isinstance(value, unicode)):
             errors = CheckRunWindow.validate(value)
             if errors:
                 raise ValidationError(errors)
