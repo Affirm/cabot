@@ -48,6 +48,8 @@ class CheckRunWindowForm(forms.Field):
 
     def to_python(self, value):
         # type: (unicode) -> CheckRunWindow
+        if isinstance(value, CheckRunWindow):
+            return value
         if value:
             errors = CheckRunWindow.validate(value)
             if errors:
