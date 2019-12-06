@@ -1,13 +1,9 @@
-import json
-
 from django.core.urlresolvers import reverse
 from django.shortcuts import render
 from django.views.generic import UpdateView, CreateView
 from cabot.cabotapp.views import LoginRequiredMixin
-from cabot.metricsapp.api import get_es_status_check_fields, get_status_check_fields
-from cabot.metricsapp.forms import GrafanaElasticsearchStatusCheckForm, GrafanaElasticsearchStatusCheckUpdateForm
-from cabot.metricsapp.models import ElasticsearchStatusCheck, GrafanaDataSource
-from cabot.metricsapp.models.grafana import build_grafana_panel_from_session, set_grafana_panel_from_session
+from cabot.metricsapp.forms import GrafanaElasticsearchStatusCheckForm
+from cabot.metricsapp.models import ElasticsearchStatusCheck
 
 
 class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, CreateView):
@@ -17,23 +13,9 @@ class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, CreateView):
 
     def get_form_kwargs(self):
         kwargs = super(GrafanaElasticsearchStatusCheckCreateView, self).get_form_kwargs()
-
-        request = self.request
-        dashboard_info = request.session['dashboard_info']
-        panel_info = request.session['panel_info']
-        series = request.session['series']
-        templating_dict = request.session['templating_dict']
-        grafana_panel = build_grafana_panel_from_session(request.session)
-        instance_id = request.session['instance_id']
-        grafana_data_source = GrafanaDataSource.objects.get(
-            grafana_source_name=request.session['datasource'],
-            grafana_instance_id=instance_id
-        )
-
         kwargs.update({
-            'fields': get_status_check_fields(dashboard_info, panel_info, grafana_data_source,
-                                              templating_dict, grafana_panel, request.user),
-            'es_fields': get_es_status_check_fields(dashboard_info, panel_info, series),
+            'grafana_session_data': self.request.session,
+            'user': self.request.user
         })
         return kwargs
 
@@ -48,17 +30,24 @@ class GrafanaElasticsearchStatusCheckCreateView(LoginRequiredMixin, CreateView):
     def get_success_url(self):
         return reverse('check', kwargs={'pk': self.object.id})
 
-    def form_valid(self, form):
-        response = super(GrafanaElasticsearchStatusCheckCreateView, self).form_valid(form)
-        return response
-
 
 class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
+    """View for updating not-from-Grafana values"""
+
     model = ElasticsearchStatusCheck
-    form_class = GrafanaElasticsearchStatusCheckUpdateForm
+    form_class = GrafanaElasticsearchStatusCheckForm
     template_name = 'metricsapp/grafana_create.html'
 
-    # note - this view also updates self.object.grafana_panel (via ElasticsearchStatusCheckUpdateForm)
+    # note - this view also updates self.object.grafana_panel (via GrafanaStatusCheckForm)
+
+    def get_form_kwargs(self):
+        kwargs = super(GrafanaElasticsearchStatusCheckUpdateView, self).get_form_kwargs()
+        # don't pass session data, since that's not populated in the Update view
+        kwargs.update({
+            'grafana_session_data': None,  # don't populate any fields from session data
+            'user': self.request.user,  # update the created_by field
+        })
+        return kwargs
 
     def get_success_url(self):
         return reverse('check', kwargs={'pk': self.object.pk})
@@ -66,13 +55,18 @@ class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         # review changed fields before saving changes
         # skip_review gets set by a manually added hidden checkbox input in grafana_preview_changes.html
-        # (note that it is NOT part of GrafanaElasticsearchStatusCheckUpdateForm)
+        # (note that it is NOT a field of GrafanaElasticsearchStatusCheckUpdateForm, it's just in the POST data)
         if not self.request.POST.get('skip_review'):
             # create a form with the original data so we can easily render old fields in the preview_changes template
-            original_form = self.form_class(initial=form.initial, instance=self.object)
+            # ModelForm's __init__ will overwrite self.object's fields to match what's passed via `initial`
+            # so we re-fetch our instance from the DB for comparison
+            original_form = self.form_class(instance=self.get_object())
 
+            # form.changed_data only works for values where data != initial, but we pre-populate using initial
+            # so we need to do our own logic to detect if those fields have changed
+            # cast to str first to deal with floating point inaccuracies
             changed = [(field, original_form[field.name]) for field in form
-                       if field.name in form.changed_data]
+                       if str(field.value()) != str(original_form[field.name].value())]
 
             context = {'form': form, 'changed_fields': changed}
             context.update(self.get_context_data())
@@ -83,8 +77,9 @@ class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super(GrafanaElasticsearchStatusCheckUpdateView, self).get_context_data(**kwargs)
-        if self.object.grafana_panel is not None:
-            context['panel_url'] = self.object.grafana_panel.panel_url
+        context.update({
+            'panel_url': context['form'].grafana_panel.panel_url
+        })
         return context
 
 
@@ -95,45 +90,9 @@ class GrafanaElasticsearchStatusCheckRefreshView(GrafanaElasticsearchStatusCheck
     (GrafanaDashboardSelectView, etc).
     """
     def get_form_kwargs(self):
-        """Add kwargs['data'] and fill it with the latest values from Grafana"""
         kwargs = super(GrafanaElasticsearchStatusCheckRefreshView, self).get_form_kwargs()
-
-        if self.request.method == 'GET':
-            # kwargs['data'] will be the data in the form presented to the user
-            # note we don't use kwargs['initial'] or override get_initial() here because we want to use form.has_changed
-            # later for the preview
-            kwargs['data'] = {}
-
-            # since we are specifying the form data (in order to update values with the latest from Grafana),
-            # we must set all the values or anything we omit will have the default form.widget value
-            # we do this by creating a form and copying the values from it
-            base_form = self.get_form_class()(instance=self.object)
-            for field_name in base_form.fields:
-                kwargs['data'][field_name] = base_form[field_name].value()
-
-            # build fields which will have the latest data from Grafana
-            request = self.request
-            dashboard_info = request.session['dashboard_info']
-            panel_info = request.session['panel_info']
-            series = request.session['series']
-            templating_dict = request.session['templating_dict']
-            grafana_panel = build_grafana_panel_from_session(request.session)
-            grafana_data_source = GrafanaDataSource.objects.get(
-                grafana_source_name=request.session['datasource'],
-                grafana_instance_id=request.session['instance_id']
-            )
-
-            fields = get_status_check_fields(dashboard_info, panel_info, grafana_data_source, templating_dict,
-                                             grafana_panel)
-            fields.update(get_es_status_check_fields(dashboard_info, panel_info, series))
-
-            # convert the queries dict to a json string so we can render it
-            fields['queries'] = json.dumps(fields['queries'])
-
-            kwargs['data'].update(fields)
-
-        # either way, make sure we build an updated GrafanaPanel, since that was finalized in the previous steps
-        # this doesn't touch the DB yet
-        set_grafana_panel_from_session(self.object.grafana_panel, self.request.session)
-
+        kwargs.update({
+            'grafana_session_data': self.request.session,
+            'user': self.request.user,
+        })
         return kwargs

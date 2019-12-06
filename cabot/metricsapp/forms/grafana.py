@@ -2,10 +2,13 @@ from django import forms
 from django.contrib.auth.models import AnonymousUser
 
 from cabot.cabotapp.views import StatusCheckForm
+from cabot.metricsapp.api import get_status_check_fields
 from cabot.metricsapp.models import GrafanaInstance, GrafanaDataSource
 
-
 # Model forms for admin site
+from cabot.metricsapp.models.grafana import set_grafana_panel_from_session, GrafanaPanel
+
+
 class GrafanaInstanceAdminForm(forms.ModelForm):
     class Meta:
         model = GrafanaInstance
@@ -112,51 +115,66 @@ class GrafanaSeriesForm(forms.Form):
 
 class GrafanaStatusCheckForm(StatusCheckForm):
     """Generic form for creating a status check. Other metrics sources will subclass this."""
-    def __init__(self, *args, **kwargs):
-        fields = kwargs.pop('fields')
-        super(GrafanaStatusCheckForm, self).__init__(*args, **kwargs)
 
-        self.fields['name'].initial = fields['name']
+    _autofilled_fields = ('time_range', 'check_type', 'warning_value', 'high_alert_value', 'source')
+    _disabled_fields = ('source',)
+
+    def __init__(self, grafana_session_data=None, user=None, initial=None, *args, **kwargs):
+        self.grafana_panel = ((initial and initial['grafana_panel'])
+                              or (kwargs.get('instance') and kwargs['instance'].grafana_panel)
+                              or GrafanaPanel())
+
+        if grafana_session_data:
+            dashboard_info = grafana_session_data['dashboard_info']
+            panel_info = grafana_session_data['panel_info']
+            templating_dict = grafana_session_data['templating_dict']
+            instance_id = grafana_session_data['instance_id']
+            grafana_data_source = GrafanaDataSource.objects.get(
+                grafana_source_name=grafana_session_data['datasource'],
+                grafana_instance_id=instance_id
+            )
+
+            # we will reuse the PK of instance.grafana_panel if there's one set, changes are manually saved in save()
+            set_grafana_panel_from_session(self.grafana_panel, grafana_session_data)
+
+            grafana_fields = get_status_check_fields(dashboard_info, panel_info, grafana_data_source,
+                                                     templating_dict, self.grafana_panel, user)
+
+            # MetricsSourceBase overrides __unicode__ to return its name, but we need it to serialize to
+            # its pk so ModelChoiceForm can handle it right
+            grafana_fields['source'] = grafana_fields['source'].pk
+
+            # apply initial on top of get_status_check_fields() to allow overriding
+            if initial:
+                grafana_fields.update(initial)
+            initial = grafana_fields
+
+        super(GrafanaStatusCheckForm, self).__init__(*args, initial=initial, **kwargs)
+
         self.fields['name'].widget = forms.TextInput(attrs=dict(style='width:50%'))
         self.fields['name'].help_text = None
 
-        # Time range, check_type, and thresholds are editable.
-        for field_name in ['time_range', 'check_type', 'warning_value', 'high_alert_value']:
-            field_value = fields.get(field_name)
-            if field_value is not None:
-                self.fields[field_name].initial = field_value
-                self.fields[field_name].help_text += ' Autofilled from the Grafana dashboard.'
+        for field_name in self._autofilled_fields:
+            self.fields[field_name].help_text += ' Autofilled from the Grafana dashboard.'
 
-        # Store fields that will be set in save()
-        self.source = fields['source']
-        self.grafana_panel = fields['grafana_panel']
-        self.user = fields['user']
+        for field_name in self._disabled_fields:
+            self.fields[field_name].disabled = True
 
-    # TODO should probably take commit as an argument here
-    def save(self):
-        # set the MetricsSourceBase here so we don't have to display it
+        self.user = user  # used in save(), ignored if None
+
+    def save(self, commit=True):
         model = super(GrafanaStatusCheckForm, self).save(commit=False)
 
-        # the grafana panel may have updated as well, so also save that
-        self.grafana_panel.save()
+        # the grafana panel may have been created or updated, so also save that
+        if self.grafana_panel:
+            self.grafana_panel.save()
+            model.grafana_panel = self.grafana_panel
 
-        model.source = self.source
-        model.grafana_panel = self.grafana_panel
-        if self.user is not None and not isinstance(self.user, AnonymousUser):
+        if self.user and not isinstance(self.user, AnonymousUser):
             model.created_by = self.user
-
-        model.save()
 
         # When commit is False, we just get the model, but the service/instance sets aren't saved
         # (since the model doesn't have a pk yet). Re-run to actually save the service and instance sets
         model = super(GrafanaStatusCheckForm, self).save()
 
         return model
-
-
-class GrafanaStatusCheckUpdateForm(StatusCheckForm):
-    """Update a status check created from Grafana"""
-    def __init__(self, *args, **kwargs):
-        super(GrafanaStatusCheckUpdateForm, self).__init__(*args, **kwargs)
-        # Hide name field
-        self.fields['name'].widget = forms.TextInput(attrs=dict(style='width:50%'))
