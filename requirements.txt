@@ -1,4 +1,4 @@
-Django==1.11.17
+Django==1.11.27
 Markdown==2.5
 PyJWT==1.4.2
 amqp==1.4.9
