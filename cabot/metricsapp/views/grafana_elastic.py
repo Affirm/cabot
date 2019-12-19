@@ -66,7 +66,7 @@ class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
             # so we need to do our own logic to detect if those fields have changed
             # cast to str first to deal with floating point inaccuracies
             changed = [(field, original_form[field.name]) for field in form
-                       if str(field.value()) != str(original_form[field.name].value())]
+                       if field.value() != original_form[field.name].value()]
 
             context = {'form': form, 'changed_fields': changed}
             context.update(self.get_context_data())

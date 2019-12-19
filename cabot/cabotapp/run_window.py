@@ -97,6 +97,9 @@ class CheckRunWindow:
     @classmethod
     def deserialize(cls, data):
         # type: (unicode) -> CheckRunWindow
+        if data is None:
+            return cls([])
+
         if data == u'':
             return cls([])
 
