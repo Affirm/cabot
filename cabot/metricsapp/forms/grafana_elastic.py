@@ -2,7 +2,8 @@ from django import forms
 import json
 
 from cabot.cabotapp.views import GroupedModelForm
-from .grafana import GrafanaStatusCheckForm, GrafanaStatusCheckUpdateForm
+from cabot.metricsapp.api import get_es_status_check_fields
+from .grafana import GrafanaStatusCheckForm
 from cabot.metricsapp.models import ElasticsearchStatusCheck
 
 _GROUPS = (
@@ -19,6 +20,7 @@ _GROUPS = (
     )),
     ('Query', (
         'queries',
+        'source',
         'time_range',
         'consecutive_failures',
         'retries',
@@ -44,33 +46,25 @@ class GrafanaElasticsearchStatusCheckForm(GrafanaStatusCheckForm):
             'auto_sync': forms.CheckboxInput()
         }
 
-    def __init__(self, *args, **kwargs):
-        es_fields = kwargs.pop('es_fields')
-        super(GrafanaElasticsearchStatusCheckForm, self).__init__(*args, **kwargs)
+    _autofilled_fields = GrafanaStatusCheckForm._autofilled_fields + ('queries',)
+    _disabled_fields = GrafanaStatusCheckForm._disabled_fields + ('queries',)
 
-        self.fields['queries'].initial = json.dumps(es_fields['queries'])
-        # Hide queries so users can't edit them
-        self.fields['queries'].widget = forms.Textarea(attrs=dict(readonly='readonly',
-                                                                  style='width:100%'))
+    def __init__(self, grafana_session_data=None, initial=None, *args, **kwargs):
+        if grafana_session_data:
+            dashboard_info = grafana_session_data['dashboard_info']
+            panel_info = grafana_session_data['panel_info']
+            series = grafana_session_data['series']
+
+            es_fields = get_es_status_check_fields(dashboard_info, panel_info, series)
+            es_fields['queries'] = json.dumps(es_fields['queries'])  # TODO necessary?
+
+            if initial:
+                es_fields.update(initial)
+            initial = es_fields
+
+        super(GrafanaElasticsearchStatusCheckForm, self).__init__(*args, initial=initial,
+                                                                  grafana_session_data=grafana_session_data, **kwargs)
+
+        # styling
+        self.fields['queries'].widget.attrs['style'] = 'width:75%'
         self.fields['queries'].help_text = None
-
-
-class GrafanaElasticsearchStatusCheckUpdateForm(GrafanaStatusCheckUpdateForm):
-    class Meta(GroupedModelForm.Meta):
-        model = ElasticsearchStatusCheck
-        grouped_fields = _GROUPS
-        widgets = {
-            'auto_sync': forms.CheckboxInput()
-        }
-
-    def __init__(self, *args, **kwargs):
-        super(GrafanaElasticsearchStatusCheckUpdateForm, self).__init__(*args, **kwargs)
-        self.fields['queries'].widget = forms.Textarea(attrs=dict(readonly='readonly',
-                                                                  style='width:100%'))
-        self.fields['queries'].help_text = None
-
-    def save(self, commit=True):
-        if self.instance.grafana_panel is not None:
-            self.instance.grafana_panel.save()
-
-        return super(GrafanaElasticsearchStatusCheckUpdateForm, self).save(commit=commit)

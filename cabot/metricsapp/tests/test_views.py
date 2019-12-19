@@ -5,7 +5,7 @@ from django.core.urlresolvers import reverse
 from django.test import TestCase
 
 from cabot.cabotapp.models import Service
-from cabot.metricsapp.models import MetricsSourceBase, ElasticsearchStatusCheck
+from cabot.metricsapp.models import MetricsSourceBase, ElasticsearchStatusCheck, GrafanaInstance, GrafanaPanel
 
 
 class TestMetricsReviewChanges(TestCase):
@@ -13,6 +13,16 @@ class TestMetricsReviewChanges(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('user', email='user@example.com', password='password')
         self.source = MetricsSourceBase.objects.create(name='source')
+        self.grafana_instance = GrafanaInstance.objects.create(
+            name='test',
+            url='http://test.url',
+            api_key='88888'
+        )
+        self.grafana_panel = GrafanaPanel.objects.create(
+            panel_id=1,
+            panel_url='http://test.url/some-dashboard/1',
+            grafana_instance=self.grafana_instance
+        )
         self.metrics_check = ElasticsearchStatusCheck.objects.create(
             name='test',
             created_by=self.user,
@@ -24,6 +34,8 @@ class TestMetricsReviewChanges(TestCase):
             time_range=30,
             frequency=5,
             queries='{}',
+            grafana_panel=self.grafana_panel,
+            runbook=''
         )
 
         self.base_check_data = {

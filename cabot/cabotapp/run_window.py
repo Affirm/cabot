@@ -69,7 +69,7 @@ class CheckRunWindow:
             return (isinstance(other, CheckRunWindow.Window) and
                     self.start_time == other.start_time and
                     self.end_time == other.end_time and
-                    self.recurrence == other.recurrence)
+                    str(self.recurrence.replace(dtstart=None)) == str(other.recurrence.replace(dtstart=None)))
 
         def __ne__(self, other):
             return not (self == other)
@@ -97,6 +97,9 @@ class CheckRunWindow:
     @classmethod
     def deserialize(cls, data):
         # type: (unicode) -> CheckRunWindow
+        if data is None:
+            return cls([])
+
         if data == u'':
             return cls([])
 
