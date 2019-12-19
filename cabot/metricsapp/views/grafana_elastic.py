@@ -1,6 +1,8 @@
 from django.core.urlresolvers import reverse
+from django.db.models import QuerySet
 from django.shortcuts import render
 from django.views.generic import UpdateView, CreateView
+
 from cabot.cabotapp.views import LoginRequiredMixin
 from cabot.metricsapp.forms import GrafanaElasticsearchStatusCheckForm
 from cabot.metricsapp.models import ElasticsearchStatusCheck
@@ -64,11 +66,18 @@ class GrafanaElasticsearchStatusCheckUpdateView(LoginRequiredMixin, UpdateView):
 
             # form.changed_data only works for values where data != initial, but we pre-populate using initial
             # so we need to do our own logic to detect if those fields have changed
-            # cast to str first to deal with floating point inaccuracies
-            changed = [(field, original_form[field.name]) for field in form
-                       if field.value() != original_form[field.name].value()]
+            # this is incredibly stupid and i am very salty about it
+            def field_changed(field_name):
+                a = form[field_name].field.clean(form[field_name].value())
+                b = form[field_name].field.clean(original_form[field_name].value())
+                if isinstance(a, QuerySet):
+                    a = list(a)
+                if isinstance(b, QuerySet):
+                    b = list(b)
+                return a != b
 
-            context = {'form': form, 'changed_fields': changed}
+            changed_fields = [(field, original_form[field.name]) for field in form if field_changed(field.name)]
+            context = {'form': form, 'changed_fields': changed_fields}
             context.update(self.get_context_data())
             return render(self.request, 'metricsapp/grafana_preview_changes.html', context)
 
